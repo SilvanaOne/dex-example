@@ -1,0 +1,13 @@
+{
+  "name": "dex-example",
+  "description": "DEX example",
+  "version": "0.1.0",
+  "author": "DFST",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/client",
+    "packages/contracts"
+  ]
+}
