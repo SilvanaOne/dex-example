@@ -7,8 +7,7 @@
   "scripts": {
     "test": "NODE_NO_WARNINGS=1 node --loader=ts-node/esm --enable-source-maps -r dotenv/config --require dotenv/config --env-file=.env --env-file=.env.contracts --test",
     "template": "npm run test test/template.test.ts",
-    "sui": "npm run test test/sui.test.ts",
-    "walrus": "npm run test test/walrus.test.ts"
+    "deploy": "npm run test test/deploy.test.ts"
   },
   "node": {
     "version": ">=20.0.0"
@@ -22,6 +21,8 @@
   },
   "dependencies": {
     "@mysten/sui": "^1.21.2",
+    "@silvana-one/mina-utils": "^0.3.0",
+    "o1js": "^2.3.0",
     "secp256k1": "^5.0.1"
   }
 }

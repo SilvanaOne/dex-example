@@ -60,6 +60,8 @@ public struct Order has store {
 }
 
 public struct UserTradingAccount has store {
+    name: String,
+    base58PublicKey: String,
     baseTokenBalance: MinaBalance,
     quoteTokenBalance: MinaBalance,
     bid: Order,
@@ -83,57 +85,62 @@ const OPERATION_TRADE: u8 = 4;
 const OPERATION_TRANSFER_BASE_TOKEN: u8 = 5;
 const OPERATION_TRANSFER_QUOTE_TOKEN: u8 = 6;
 
-public enum Action has copy, drop {
-    CreateAccount {
-        userPublicKey: MinaPublicKey,
-        poolPublicKey: MinaPublicKey,
-        baseBalance: u64,
-        quoteBalance: u64,
-    },
-    Bid {
-        userPublicKey: MinaPublicKey,
-        poolPublicKey: MinaPublicKey,
-        amount: u64,
-        price: u64,
-        isSome: bool,
-        nonce: u64,
-        userSignature: MinaSignature,
-    },
-    Ask {
-        userPublicKey: MinaPublicKey,
-        poolPublicKey: MinaPublicKey,
-        amount: u64,
-        price: u64,
-        isSome: bool,
-        nonce: u64,
-        userSignature: MinaSignature,
-    },
-    Trade {
-        buyerPublicKey: MinaPublicKey,
-        sellerPublicKey: MinaPublicKey,
-        poolPublicKey: MinaPublicKey,
-        amount: u64,
-        quoteAmount: u64,
-        price: u64,
-        buyerNonce: u64,
-        sellerNonce: u64,
-    },
-    TransferBaseToken {
-        senderPublicKey: MinaPublicKey,
-        receiverPublicKey: MinaPublicKey,
-        amount: u64,
-        senderNonce: u64,
-        receiverNonce: u64,
-        senderSignature: MinaSignature,
-    },
-    TransferQuoteToken {
-        senderPublicKey: MinaPublicKey,
-        receiverPublicKey: MinaPublicKey,
-        amount: u64,
-        senderNonce: u64,
-        receiverNonce: u64,
-        senderSignature: MinaSignature,
-    },
+public struct ActionCreateAccount has copy, drop {
+    name: String,
+    base58PublicKey: String,
+    userPublicKey: MinaPublicKey,
+    poolPublicKey: MinaPublicKey,
+    baseBalance: u64,
+    quoteBalance: u64,
+}
+
+public struct ActionBid has copy, drop {
+    userPublicKey: MinaPublicKey,
+    poolPublicKey: MinaPublicKey,
+    amount: u64,
+    price: u64,
+    isSome: bool,
+    nonce: u64,
+    userSignature: MinaSignature,
+}
+
+public struct ActionAsk has copy, drop {
+    userPublicKey: MinaPublicKey,
+    poolPublicKey: MinaPublicKey,
+    amount: u64,
+    price: u64,
+    isSome: bool,
+    nonce: u64,
+    userSignature: MinaSignature,
+}
+
+public struct ActionTrade has copy, drop {
+    buyerPublicKey: MinaPublicKey,
+    sellerPublicKey: MinaPublicKey,
+    poolPublicKey: MinaPublicKey,
+    amount: u64,
+    quoteAmount: u64,
+    price: u64,
+    buyerNonce: u64,
+    sellerNonce: u64,
+}
+
+public struct ActionTransferBaseToken has copy, drop {
+    senderPublicKey: MinaPublicKey,
+    receiverPublicKey: MinaPublicKey,
+    amount: u64,
+    senderNonce: u64,
+    receiverNonce: u64,
+    senderSignature: MinaSignature,
+}
+
+public struct ActionTransferQuoteToken has copy, drop {
+    senderPublicKey: MinaPublicKey,
+    receiverPublicKey: MinaPublicKey,
+    amount: u64,
+    senderNonce: u64,
+    receiverNonce: u64,
+    senderSignature: MinaSignature,
 }
 
 public struct Operation has copy, drop {
@@ -145,9 +152,34 @@ public struct Operation has copy, drop {
     data: vector<vector<u8>>,
 }
 
-public struct OperationEvent has copy, drop {
+public struct OperationCreateAccountEvent has copy, drop {
     operation: Operation,
-    details: Action,
+    details: ActionCreateAccount,
+}
+
+public struct OperationBidEvent has copy, drop {
+    operation: Operation,
+    details: ActionBid,
+}
+
+public struct OperationAskEvent has copy, drop {
+    operation: Operation,
+    details: ActionAsk,
+}
+
+public struct OperationTradeEvent has copy, drop {
+    operation: Operation,
+    details: ActionTrade,
+}
+
+public struct OperationTransferBaseTokenEvent has copy, drop {
+    operation: Operation,
+    details: ActionTransferBaseToken,
+}
+
+public struct OperationTransferQuoteTokenEvent has copy, drop {
+    operation: Operation,
+    details: ActionTransferQuoteToken,
 }
 
 public struct Pool has key, store {
@@ -168,6 +200,27 @@ public struct PoolCreateEvent has copy, drop {
     quoteToken: Token,
 }
 
+#[allow(unused_field)]
+public struct Block has key, store {
+    id: UID,
+    blockNumber: u64,
+    sequences: vector<u64>,
+    startActionState: vector<u8>,
+    endActionState: vector<u8>,
+    stateDataAvailability: Option<String>,
+    proofDataAvailability: Option<String>,
+}
+
+public struct BlockEvent has copy, drop {
+    id: ID,
+    blockNumber: u64,
+    sequences: vector<u64>,
+    startActionState: vector<u8>,
+    endActionState: vector<u8>,
+    stateDataAvailability: Option<String>,
+    proofDataAvailability: Option<String>,
+}
+
 public struct DEX has key, store {
     id: UID,
     admin: address,
@@ -175,15 +228,18 @@ public struct DEX has key, store {
     version: u32,
     actionsState: vector<u8>,
     sequence: u64,
+    previous_block_sequence: u64,
+    previous_block_actions_state: vector<u8>,
+    block_number: u64,
     poolId: Option<ID>,
     poolAddress: Option<address>,
+    isPaused: bool,
 }
 
 public struct DEXCreateEvent has copy, drop {
     id: ID,
     admin: address,
     version: u32,
-    sequence: u64,
     actionsState: vector<u8>,
 }
 
@@ -210,6 +266,8 @@ const EInvalidSignature: vector<u8> = b"Invalid signature";
 const ENotAuthorized: vector<u8> = b"Not authorized";
 #[error]
 const EInvalidPublicKey: vector<u8> = b"Invalid public key";
+#[error]
+const EDEXPaused: vector<u8> = b"DEX is paused";
 
 fun init(ctx: &mut TxContext) {
     let bytes = vector<u8>[0];
@@ -221,15 +279,18 @@ fun init(ctx: &mut TxContext) {
         version: DEX_VERSION,
         actionsState: hash,
         sequence: 0,
+        previous_block_sequence: 0,
+        previous_block_actions_state: hash,
+        block_number: 0,
         poolId: option::none(),
         poolAddress: option::none(),
+        isPaused: true,
     };
 
     event::emit(DEXCreateEvent {
         id: dex.id.to_inner(),
         admin: dex.admin,
         version: dex.version,
-        sequence: dex.sequence,
         actionsState: dex.actionsState,
     });
     transfer::share_object(dex);
@@ -242,6 +303,7 @@ fun update_actions_state(
     pool: String,
     poolPublicKey: MinaPublicKey,
 ): Operation {
+    assert!(dex.isPaused == false, EDEXPaused);
     let mut dataToHash = vector::empty<u8>();
     vector::append(&mut dataToHash, dex.actionsState);
     vector::push_back(&mut dataToHash, operation);
@@ -263,6 +325,25 @@ fun update_actions_state(
     }
 }
 
+public fun public_key(publicKey: MinaPublicKey) {
+    event::emit(MinaPublicKey {
+        x: publicKey.x,
+        isOdd: publicKey.isOdd,
+    });
+}
+
+public struct NumEvent has copy, drop {
+    num1: u256,
+    num2: u256,
+}
+
+public fun num_event(num: NumEvent) {
+    event::emit(NumEvent {
+        num1: num.num1,
+        num2: num.num2,
+    });
+}
+
 public fun create_pool(
     dex: &mut DEX,
     name: String,
@@ -271,6 +352,7 @@ public fun create_pool(
     quoteToken: Token,
     ctx: &mut TxContext,
 ): address {
+    assert!((dex.admin == ctx.sender()), ENotAuthorized);
     let pool = Pool {
         id: object::new(ctx),
         name,
@@ -301,10 +383,17 @@ public fun create_account(
     dex: &mut DEX,
     pool: &mut Pool,
     publicKey: MinaPublicKey,
-    baseBalance: u64, // TODO: create access control
-    quoteBalance: u64, // TODO: create access control
+    name: String,
+    base58PublicKey: String,
+    baseBalance: u64,
+    quoteBalance: u64,
+    ctx: &mut TxContext,
 ) {
+    assert!(dex.isPaused == false, EDEXPaused);
+    assert!((dex.admin == ctx.sender()), ENotAuthorized);
     let account = UserTradingAccount {
+        name,
+        base58PublicKey,
         baseTokenBalance: MinaBalance {
             amount: baseBalance,
             borrowedAmount: 0,
@@ -336,9 +425,11 @@ public fun create_account(
     ];
     let operation = update_actions_state(dex, operation, data, pool.name, pool.publicKey);
 
-    event::emit(OperationEvent {
+    event::emit(OperationCreateAccountEvent {
         operation,
-        details: Action::CreateAccount {
+        details: ActionCreateAccount {
+            name,
+            base58PublicKey,
             userPublicKey: publicKey,
             poolPublicKey: pool.publicKey,
             baseBalance,
@@ -356,6 +447,7 @@ public fun bid(
     userSignature: MinaSignature,
     validatorSignature: vector<u8>,
 ) {
+    assert!(dex.isPaused == false, EDEXPaused);
     let account = pool.accounts.get_mut(&publicKey);
     let operation = OPERATION_BID;
     let signatureData = vector<u256>[
@@ -388,9 +480,9 @@ public fun bid(
     ];
     let operation = update_actions_state(dex, operation, data, pool.name, pool.publicKey);
 
-    event::emit(OperationEvent {
+    event::emit(OperationBidEvent {
         operation,
-        details: Action::Bid {
+        details: ActionBid {
             userPublicKey: publicKey,
             poolPublicKey: pool.publicKey,
             amount,
@@ -411,6 +503,7 @@ public fun ask(
     userSignature: MinaSignature,
     validatorSignature: vector<u8>,
 ) {
+    assert!(dex.isPaused == false, EDEXPaused);
     let account = pool.accounts.get_mut(&publicKey);
     let operation = OPERATION_ASK;
     let signatureData = vector<u256>[
@@ -443,9 +536,9 @@ public fun ask(
     ];
     let operation = update_actions_state(dex, operation, data, pool.name, pool.publicKey);
 
-    event::emit(OperationEvent {
+    event::emit(OperationAskEvent {
         operation,
-        details: Action::Ask {
+        details: ActionAsk {
             userPublicKey: publicKey,
             poolPublicKey: pool.publicKey,
             amount,
@@ -465,6 +558,7 @@ public fun trade(
     amount: u64,
     price: u64,
 ) {
+    assert!(dex.isPaused == false, EDEXPaused);
     let quoteAmount = ((amount as u128) * (price as u128) / 1_000_000_000u128) as u64;
 
     // Handle buyer first
@@ -509,9 +603,9 @@ public fun trade(
     ];
     let operation = update_actions_state(dex, operation, data, pool.name, pool.publicKey);
 
-    event::emit(OperationEvent {
+    event::emit(OperationTradeEvent {
         operation,
-        details: Action::Trade {
+        details: ActionTrade {
             buyerPublicKey,
             sellerPublicKey,
             poolPublicKey: pool.publicKey,
@@ -533,6 +627,7 @@ public fun transferBaseToken(
     senderSignature: MinaSignature,
     validatorSignature: vector<u8>,
 ) {
+    assert!(dex.isPaused == false, EDEXPaused);
     let operation = OPERATION_TRANSFER_BASE_TOKEN;
     let senderNonce;
     {
@@ -581,9 +676,9 @@ public fun transferBaseToken(
     ];
     let operation = update_actions_state(dex, operation, data, pool.name, pool.publicKey);
 
-    event::emit(OperationEvent {
+    event::emit(OperationTransferBaseTokenEvent {
         operation,
-        details: Action::TransferBaseToken {
+        details: ActionTransferBaseToken {
             senderPublicKey,
             receiverPublicKey,
             amount,
@@ -603,6 +698,7 @@ public fun transferQuoteToken(
     senderSignature: MinaSignature,
     validatorSignature: vector<u8>,
 ) {
+    assert!(dex.isPaused == false, EDEXPaused);
     let operation = OPERATION_TRANSFER_QUOTE_TOKEN;
     let senderNonce;
     {
@@ -651,9 +747,9 @@ public fun transferQuoteToken(
     ];
     let operation = update_actions_state(dex, operation, data, pool.name, pool.publicKey);
 
-    event::emit(OperationEvent {
+    event::emit(OperationTransferQuoteTokenEvent {
         operation,
-        details: Action::TransferQuoteToken {
+        details: ActionTransferQuoteToken {
             senderPublicKey,
             receiverPublicKey,
             amount,
@@ -664,10 +760,75 @@ public fun transferQuoteToken(
     });
 }
 
+#[allow(lint(self_transfer))]
+public fun create_block(dex: &mut DEX, ctx: &mut TxContext) {
+    assert!(dex.admin == ctx.sender(), ENotAuthorized);
+    let blockNumber = dex.block_number + 1;
+    let mut sequences = vector::empty<u64>();
+    let mut i = dex.previous_block_sequence + 1;
+    while (i <= dex.sequence) {
+        vector::push_back(&mut sequences, i);
+        i = i + 1;
+    };
+    let block = Block {
+        // TODO: add timestamp
+        id: object::new(ctx),
+        blockNumber,
+        sequences,
+        startActionState: dex.previous_block_actions_state,
+        endActionState: dex.actionsState,
+        stateDataAvailability: option::none(),
+        proofDataAvailability: option::none(),
+    };
+
+    dex.previous_block_sequence = dex.sequence;
+    dex.previous_block_actions_state = dex.actionsState;
+    dex.block_number = blockNumber;
+    event::emit(BlockEvent {
+        id: block.id.to_inner(),
+        blockNumber,
+        sequences,
+        startActionState: block.startActionState,
+        endActionState: block.endActionState,
+        stateDataAvailability: option::none(),
+        proofDataAvailability: option::none(),
+    });
+
+    transfer::transfer(block, ctx.sender());
+    //transfer::share_object(block);
+}
+
+public fun update_block_state(block: &mut Block, block_state: String) {
+    block.stateDataAvailability = option::some(block_state);
+    event::emit(BlockEvent {
+        id: block.id.to_inner(),
+        blockNumber: block.blockNumber,
+        sequences: block.sequences,
+        startActionState: block.startActionState,
+        endActionState: block.endActionState,
+        stateDataAvailability: block.stateDataAvailability,
+        proofDataAvailability: block.proofDataAvailability,
+    });
+}
+
+public fun update_block_proof(block: &mut Block, block_proof: String) {
+    block.proofDataAvailability = option::some(block_proof);
+    event::emit(BlockEvent {
+        id: block.id.to_inner(),
+        blockNumber: block.blockNumber,
+        sequences: block.sequences,
+        startActionState: block.startActionState,
+        endActionState: block.endActionState,
+        stateDataAvailability: block.stateDataAvailability,
+        proofDataAvailability: block.proofDataAvailability,
+    });
+}
+
 public fun set_public_key(dex: &mut DEX, public_key: vector<u8>, ctx: &mut TxContext) {
     assert!(dex.admin == ctx.sender(), ENotAuthorized);
     assert!(vector::length(&public_key) == 33, EInvalidPublicKey);
     dex.public_key = public_key;
+    dex.isPaused = false;
 }
 
 public fun verify_signature(

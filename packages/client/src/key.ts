@@ -1,13 +1,9 @@
-import {
-  CoinBalance,
-  getFullnodeUrl,
-  SuiClient,
-  SuiEvent,
-} from "@mysten/sui/client";
+import { CoinBalance } from "@mysten/sui/client";
 import { getFaucetHost, requestSuiFromFaucetV1 } from "@mysten/sui/faucet";
 import { MIST_PER_SUI } from "@mysten/sui/utils";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Secp256k1Keypair } from "@mysten/sui/keypairs/secp256k1";
+import { suiClient, network } from "./sui-client.js";
 
 export function suiBalance(balance: CoinBalance): number {
   return Number.parseInt(balance.totalBalance) / Number(MIST_PER_SUI);
@@ -16,18 +12,16 @@ export function suiBalance(balance: CoinBalance): number {
 const MIN_SUI_BALANCE = 1;
 
 export async function getKey(params: {
-  network: "testnet" | "devnet" | "localnet";
   secretKey?: string;
+  name?: string;
+  topup?: boolean;
 }): Promise<{
   address: string;
   secretKey: string;
   keypair: Secp256k1Keypair;
   balance: CoinBalance;
 }> {
-  const { network } = params;
-  const suiClient = new SuiClient({
-    url: getFullnodeUrl(network),
-  });
+  const { topup = true, name = "" } = params;
   let secretKey: string | undefined = params.secretKey;
   let address: string;
   let keypair: Secp256k1Keypair;
@@ -43,6 +37,7 @@ export async function getKey(params: {
     coinType: "0x2::sui::SUI",
   });
   if (
+    topup &&
     suiBalance(balance) < MIN_SUI_BALANCE &&
     (network === "localnet" || network === "devnet" || network === "testnet")
   ) {
@@ -63,8 +58,8 @@ export async function getKey(params: {
     }
   }
 
-  console.log("Address", address);
-  console.log("SecretKey", secretKey);
-  console.log(`Balance: ${suiBalance(balance)} SUI`);
+  console.log(`${name} address`, address);
+  //console.log("SecretKey", secretKey);
+  console.log(`${name} balance: ${suiBalance(balance)} SUI`);
   return { address, secretKey, keypair, balance };
 }
