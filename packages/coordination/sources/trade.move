@@ -2,9 +2,11 @@ module dex::trade;
 
 use std::string::String;
 use sui::clock::{timestamp_ms, Clock};
+use sui::display;
 use sui::ecdsa_k1::secp256k1_verify;
 use sui::event;
 use sui::hash::blake2b256;
+use sui::package;
 use sui::vec_map::{VecMap, empty};
 
 const DEX_VERSION: u32 = 1;
@@ -286,7 +288,9 @@ const EInvalidPublicKey: vector<u8> = b"Invalid public key";
 #[error]
 const EDEXPaused: vector<u8> = b"DEX is paused";
 
-fun init(ctx: &mut TxContext) {
+public struct TRADE has drop {}
+
+fun init(otw: TRADE, ctx: &mut TxContext) {
     let bytes = vector<u8>[0];
     let hash = blake2b256(&bytes);
     let dex = DEX {
@@ -313,6 +317,111 @@ fun init(ctx: &mut TxContext) {
         version: dex.version,
         actionsState: dex.actionsState,
     });
+
+    let publisher = package::claim(otw, ctx);
+
+    let dex_keys = vector[
+        b"name".to_string(),
+        b"description".to_string(),
+        b"project_url".to_string(),
+        b"creator".to_string(),
+    ];
+
+    let dex_values = vector[
+        b"Silvana DEX".to_string(),
+        b"Silvana DEX is a decentralized exchange for the Mina protocol".to_string(),
+        b"https://dex.silvana.dev".to_string(),
+        b"DFST".to_string(),
+    ];
+    let mut display_dex = display::new_with_fields<DEX>(
+        &publisher,
+        dex_keys,
+        dex_values,
+        ctx,
+    );
+
+    let pool_keys = vector[
+        b"name".to_string(),
+        b"link".to_string(),
+        b"project_url".to_string(),
+        b"creator".to_string(),
+    ];
+
+    let pool_values = vector[
+        b"{name}".to_string(),
+        b"https://minascan.io/devnet/account/{publicKeyBase58}".to_string(),
+        b"https://dex.silvana.dev".to_string(),
+        b"DFST".to_string(),
+    ];
+
+    let mut display_pool = display::new_with_fields<Pool>(
+        &publisher,
+        pool_keys,
+        pool_values,
+        ctx,
+    );
+
+    let token_keys = vector[
+        b"name".to_string(),
+        b"link".to_string(),
+        b"image_url".to_string(),
+        b"thumbnail_url".to_string(),
+        b"description".to_string(),
+        b"project_url".to_string(),
+        b"creator".to_string(),
+    ];
+
+    let token_values = vector[
+        b"{name}".to_string(),
+        b"https://minascan.io/devnet/account/{publicKeyBase58}".to_string(),
+        b"{image}".to_string(),
+        b"{image}".to_string(),
+        b"{description}".to_string(),
+        b"https://dex.silvana.dev".to_string(),
+        b"DFST".to_string(),
+    ];
+    let mut display_token = display::new_with_fields<Token>(
+        &publisher,
+        token_keys,
+        token_values,
+        ctx,
+    );
+
+    let user_keys = vector[
+        b"name".to_string(),
+        b"link".to_string(),
+        b"image_url".to_string(),
+        b"thumbnail_url".to_string(),
+        b"description".to_string(),
+        b"project_url".to_string(),
+        b"creator".to_string(),
+    ];
+
+    let user_values = vector[
+        b"{name}".to_string(),
+        b"https://minascan.io/devnet/account/{publicKeyBase58}".to_string(),
+        b"{image}".to_string(),
+        b"{image}".to_string(),
+        b"{role}".to_string(),
+        b"https://dex.silvana.dev".to_string(),
+        b"DFST".to_string(),
+    ];
+    let mut display_user = display::new_with_fields<User>(
+        &publisher,
+        user_keys,
+        user_values,
+        ctx,
+    );
+
+    display_dex.update_version();
+    display_pool.update_version();
+    display_token.update_version();
+    display_user.update_version();
+    transfer::public_transfer(publisher, ctx.sender());
+    transfer::public_transfer(display_dex, ctx.sender());
+    transfer::public_transfer(display_pool, ctx.sender());
+    transfer::public_transfer(display_token, ctx.sender());
+    transfer::public_transfer(display_user, ctx.sender());
     transfer::share_object(dex);
 }
 

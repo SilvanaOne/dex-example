@@ -190,7 +190,11 @@ describe("Topup DEX users", async () => {
           digest,
           events,
         });
-        await waitTx(digest);
+        const waitResult = await waitTx(digest);
+        if (waitResult.errors) {
+          console.log(`Errors for tx ${digest}:`, waitResult.errors);
+        }
+        assert.ok(!waitResult.errors, "bid transaction failed");
 
         const newAccount = await fetchDexAccount(trader.user.minaPublicKey);
         if (!newAccount) {
@@ -253,7 +257,11 @@ describe("Topup DEX users", async () => {
           digest,
           events,
         });
-        await waitTx(digest);
+        const waitResult = await waitTx(digest);
+        if (waitResult.errors) {
+          console.log(`Errors for tx ${digest}:`, waitResult.errors);
+        }
+        assert.ok(!waitResult.errors, "ask transaction failed");
 
         const newAccount = await fetchDexAccount(trader.user.minaPublicKey);
         if (!newAccount) {
@@ -327,7 +335,11 @@ describe("Topup DEX users", async () => {
       digest,
       events,
     });
-    await waitTx(digest);
+    const waitResult = await waitTx(digest);
+    if (waitResult.errors) {
+      console.log(`Errors for tx ${digest}:`, waitResult.errors);
+    }
+    assert.ok(!waitResult.errors, "trade transaction failed");
 
     const newAliceAccount = await fetchDexAccount(alice.minaPublicKey);
     if (!newAliceAccount) {

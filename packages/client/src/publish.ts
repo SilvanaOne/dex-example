@@ -41,7 +41,7 @@ export async function buildPublishTx(params: {
   tx.setGasOwner(address);
   tx.setGasPayment(coins);
   //console.log("tx", await tx.toJSON());
-  tx.setGasBudget(100_000_000);
+  tx.setGasBudget(150_000_000);
 
   //console.log("tx", await tx.toJSON());
   console.time("sign");

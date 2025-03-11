@@ -2,7 +2,6 @@ import { suiClient } from "./sui-client.js";
 import { publicKeyToU256 } from "./public-key.js";
 import { UserTradingAccount } from "./types.js";
 
-const objectID = process.env.OBJECT_ID;
 const poolID = process.env.POOL_ID;
 
 export async function fetchSuiObject(objectID: string) {
@@ -11,6 +10,9 @@ export async function fetchSuiObject(objectID: string) {
     id: objectID,
     options: {
       showContent: true,
+      showStorageRebate: true,
+      showDisplay: true,
+      showType: true,
     },
   });
   console.timeEnd("getObject");
@@ -22,6 +24,7 @@ export async function fetchDexPool() {
     throw new Error("POOL_ID is not set");
   }
   const data = await fetchSuiObject(poolID);
+
   return data;
 }
 
@@ -34,6 +37,7 @@ export async function fetchDexAccount(
   if (accounts && Array.isArray(accounts)) {
     const account = accounts.find((item) => item?.fields?.key === publicKey);
     if (account) {
+      console.log("account", account);
       const data = account?.fields?.value?.fields;
       const result: UserTradingAccount = {
         baseTokenBalance: {

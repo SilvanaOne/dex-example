@@ -16,6 +16,10 @@ export async function executeTx(tx: SignatureWithBytes) {
     },
   });
   console.timeEnd(`tx execute`);
+  if (executedTx.errors) {
+    console.log(`Errors for tx ${executedTx.digest}:`, executedTx.errors);
+    throw new Error(`tx execution failed: ${executedTx.digest}`);
+  }
   return {
     tx: executedTx,
     digest: executedTx.digest,

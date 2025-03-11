@@ -30,9 +30,9 @@ userSecretKeys.map((secretKey) => {
   }
 });
 
-let packageID = process.env.PACKAGE_ID;
-let objectID = process.env.OBJECT_ID;
-let poolID = process.env.POOL_ID;
+let packageID: string | undefined = undefined;
+let objectID: string | undefined = undefined;
+let poolID: string | undefined = undefined;
 let dexObjects: DexObjects | undefined = undefined;
 
 describe("Deploy DEX contracts", async () => {
@@ -54,7 +54,8 @@ describe("Deploy DEX contracts", async () => {
         packageID = change.packageId;
       } else if (
         change.type === "created" &&
-        change.objectType.includes("trade::DEX")
+        change.objectType.includes("trade::DEX") &&
+        !change.objectType.includes("display")
       ) {
         objectID = change.objectId;
       }
@@ -93,16 +94,15 @@ describe("Deploy DEX contracts", async () => {
     const tx = new Transaction();
 
     /*
-      public fun create_token(
-          dex: &mut DEX,
-          publicKey: u256,
-          publicKeyBase58: String,
-          tokenId: u256,
-          token: String,
-          name: String,
-          description: String,
-          image: String,
-          ctx: &mut TxContext,
+            dex: &mut DEX,
+            publicKey: u256,
+            publicKeyBase58: String,
+            tokenId: u256,
+            token: String,
+            name: String,
+            description: String,
+            image: String,
+            ctx: &mut TxContext,
     */
     const baseTokenArguments = [
       tx.object(objectID),
@@ -189,6 +189,7 @@ describe("Deploy DEX contracts", async () => {
     });
 
     tx.setSender(address);
+    tx.setGasBudget(100_000_000);
     const signedTx = await tx.sign({
       signer: keypair,
       client: suiClient,
@@ -198,7 +199,8 @@ describe("Deploy DEX contracts", async () => {
     initTx.objectChanges?.map((change) => {
       if (
         change.type === "created" &&
-        change.objectType.includes("trade::Pool")
+        change.objectType.includes("trade::Pool") &&
+        !change.objectType.includes("display")
       ) {
         poolID = change.objectId;
       }
@@ -210,7 +212,11 @@ describe("Deploy DEX contracts", async () => {
       events,
       poolID,
     });
-    await waitTx(digest);
+    const waitResult = await waitTx(digest);
+    if (waitResult.errors) {
+      console.log(`Errors for tx ${digest}:`, waitResult.errors);
+    }
+    assert.ok(!waitResult.errors, "publish transaction failed");
   });
 
   it("should create users", async () => {
@@ -329,7 +335,7 @@ describe("Deploy DEX contracts", async () => {
     });
 
     tx.setSender(address);
-
+    tx.setGasBudget(100_000_000);
     const signedTx = await tx.sign({
       signer: keypair,
       client: suiClient,
@@ -340,7 +346,11 @@ describe("Deploy DEX contracts", async () => {
       digest,
       events,
     });
-    await waitTx(digest);
+    const waitResult = await waitTx(digest);
+    if (waitResult.errors) {
+      console.log(`Errors for tx ${digest}:`, waitResult.errors);
+    }
+    assert.ok(!waitResult.errors, "init transaction failed");
   });
   it("should save object IDs to .env.contracts", async () => {
     const envContent = `PACKAGE_ID=${packageID}

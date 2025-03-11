@@ -186,7 +186,11 @@ describe("Topup DEX users", async () => {
       digest,
       events,
     });
-    await waitTx(digest);
+    const waitResult = await waitTx(digest);
+    if (waitResult.errors) {
+      console.log(`Errors for tx ${digest}:`, waitResult.errors);
+    }
+    assert.ok(!waitResult.errors, "topup transaction failed");
 
     const newFaucetAccount = await fetchDexAccount(faucet.minaPublicKey);
     const newAliceAccount = await fetchDexAccount(alice.minaPublicKey);

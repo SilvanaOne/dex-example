@@ -11,6 +11,7 @@ public struct Proof has copy, drop {
     proof: vector<u8>,
 }
 
+#[allow(unused_field)]
 public struct BlockProof has copy, drop {
     block_number: u64,
     proof: Proof,
