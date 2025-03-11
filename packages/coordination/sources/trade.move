@@ -295,6 +295,12 @@ const ENotAuthorized: vector<u8> = b"Not authorized";
 const EInvalidPublicKey: vector<u8> = b"Invalid public key";
 #[error]
 const EDEXPaused: vector<u8> = b"DEX is paused";
+#[error]
+const EInsufficientBalance: vector<u8> = b"Insufficient balance";
+#[error]
+const EInvalidAmount: vector<u8> = b"Invalid amount";
+#[error]
+const EInvalidPrice: vector<u8> = b"Invalid price";
 
 public struct TRADE has drop {}
 
@@ -632,12 +638,16 @@ public fun bid(
     validatorSignature: vector<u8>,
 ) {
     not_paused(dex);
+    let quoteAmount = ((amount as u128) * (price as u128) / 1_000_000_000u128) as u64;
     let userSignature = MinaSignature {
         r: userSignature_r,
         s: userSignature_s,
     };
     let account = pool.accounts.get_mut(&publicKey);
     let operation = OPERATION_BID;
+
+    assert!(account.quoteTokenBalance.amount >= quoteAmount, EInsufficientBalance);
+
     let valid = verify_signature(
         dex,
         validatorSignature,
@@ -699,6 +709,7 @@ public fun ask(
         s: userSignature_s,
     };
     let account = pool.accounts.get_mut(&publicKey);
+    assert!(account.baseTokenBalance.amount >= amount, EInsufficientBalance);
     let operation = OPERATION_ASK;
     let valid = verify_signature(
         dex,
@@ -754,6 +765,8 @@ public fun trade(
     price: u64,
 ) {
     not_paused(dex);
+    assert!(amount > 0, EInvalidAmount);
+    assert!(price > 0, EInvalidPrice);
     let quoteAmount = ((amount as u128) * (price as u128) / 1_000_000_000u128) as u64;
 
     // Handle buyer first
@@ -763,6 +776,7 @@ public fun trade(
         assert!(buyerAccount.bid.isSome, EInvalidBid);
         assert!(buyerAccount.bid.amount >= amount, EInsufficientBid);
         assert!(buyerAccount.bid.price <= price, EInvalidBidPrice);
+        assert!(buyerAccount.quoteTokenBalance.amount >= quoteAmount, EInsufficientBalance);
         buyerAccount.bid.amount = buyerAccount.bid.amount - amount;
         buyerAccount.baseTokenBalance.amount = buyerAccount.baseTokenBalance.amount + amount;
         buyerAccount.quoteTokenBalance.amount = buyerAccount.quoteTokenBalance.amount - quoteAmount;
@@ -780,6 +794,7 @@ public fun trade(
         assert!(sellerAccount.ask.isSome, EInvalidAsk);
         assert!(sellerAccount.ask.amount >= amount, EInsufficientAsk);
         assert!(sellerAccount.ask.price >= price, EInvalidAskPrice);
+        assert!(sellerAccount.baseTokenBalance.amount >= amount, EInsufficientBalance);
         sellerAccount.ask.amount = sellerAccount.ask.amount - amount;
         sellerAccount.baseTokenBalance.amount = sellerAccount.baseTokenBalance.amount - amount;
         sellerAccount.quoteTokenBalance.amount =
@@ -831,6 +846,7 @@ public fun transfer_base_token(
     validatorSignature: vector<u8>,
 ) {
     not_paused(dex);
+    assert!(amount > 0, EInvalidAmount);
     let operation = OPERATION_TRANSFER_BASE_TOKEN;
     let senderSignature = MinaSignature {
         r: senderSignature_r,
@@ -906,6 +922,7 @@ public fun transfer_quote_token(
     validatorSignature: vector<u8>,
 ) {
     not_paused(dex);
+    assert!(amount > 0, EInvalidAmount);
     let operation = OPERATION_TRANSFER_QUOTE_TOKEN;
     let senderSignature = MinaSignature {
         r: senderSignature_r,

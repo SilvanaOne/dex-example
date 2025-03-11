@@ -1,5 +1,7 @@
 import { u256ToPublicKey } from "./public-key.js";
 
+export const DEX_SIGNATURE_CONTEXT = 7738487874684489969637964886483n;
+
 export enum Operation {
   CREATE_ACCOUNT = 1,
   BID = 2,

@@ -1,7 +1,5 @@
 import { PrivateKey, Signature, Field, PublicKey, Poseidon } from "o1js";
-import { MinaSignature, Operation } from "./types.js";
-
-const DEX_SIGNATURE_CONTEXT = 7738487874684489969637964886483n;
+import { MinaSignature, Operation, DEX_SIGNATURE_CONTEXT } from "./types.js";
 
 export async function signDexFields(params: {
   minaPrivateKey: string;

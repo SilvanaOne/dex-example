@@ -1,7 +1,6 @@
 {
   "extends": "./tsconfig.node.json",
   "compilerOptions": {
-    "rootDir": "."
-  },
-  "include": ["src/**/*", "test/**/*"]
+    "outDir": "./dist/web"
+  }
 }

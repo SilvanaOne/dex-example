@@ -14,6 +14,7 @@
     "block": "npm run test test/block.test.ts",
     "walrus": "npm run test test/walrus.test.ts",
     "events": "npm run test test/events.test.ts",
+    "rollup": "npm run test test/rollup.test.ts",
     "start": "npm run deploy && npm run topup && npm run trade"
   },
   "node": {

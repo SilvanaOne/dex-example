@@ -7,7 +7,6 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "packages/client",
-    "packages/contracts"
+    "packages/client"
   ]
 }
