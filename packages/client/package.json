@@ -10,7 +10,11 @@
     "deploy": "npm run test test/deploy.test.ts",
     "topup": "npm run test test/topup.test.ts",
     "fetch": "npm run test test/fetch.test.ts",
-    "trade": "npm run test test/trade.test.ts"
+    "trade": "npm run test test/trade.test.ts",
+    "block": "npm run test test/block.test.ts",
+    "walrus": "npm run test test/walrus.test.ts",
+    "events": "npm run test test/events.test.ts",
+    "start": "npm run deploy && npm run topup && npm run trade"
   },
   "node": {
     "version": ">=20.0.0"

@@ -22,7 +22,7 @@ if (!aliceSecretKey || !bobSecretKey || !botSecretKey) {
 }
 
 const packageID = process.env.PACKAGE_ID;
-const objectID = process.env.OBJECT_ID;
+const dexID = process.env.DEX_ID;
 const poolID = process.env.POOL_ID;
 let dexObjects: DexObjects | undefined = undefined;
 const traders: {
@@ -43,7 +43,7 @@ const accountsAfter: {
 const amount = 1_000_000_000n;
 const tradePrice = 2100;
 
-describe("Topup DEX users", async () => {
+describe("Trade", async () => {
   it("should read configuration", async () => {
     const config = await readFile("./data/dex-objects.json", "utf-8");
     const { dexObjects: dexObjectsInternal } = JSON.parse(
@@ -72,8 +72,8 @@ describe("Topup DEX users", async () => {
       throw new Error("PACKAGE_ID is not set");
     }
 
-    if (!objectID) {
-      throw new Error("OBJECT_ID is not set");
+    if (!dexID) {
+      throw new Error("DEX_ID is not set");
     }
 
     if (!poolID) {
@@ -160,7 +160,7 @@ describe("Topup DEX users", async () => {
       */
 
         const bidArguments = [
-          tx.object(objectID),
+          tx.object(dexID),
           tx.object(poolID),
           tx.pure.u256(publicKeyToU256(trader.user.minaPublicKey)),
           tx.pure.u64(amount),
@@ -227,7 +227,7 @@ describe("Topup DEX users", async () => {
         nonce++;
 
         const askArguments = [
-          tx.object(objectID),
+          tx.object(dexID),
           tx.object(poolID),
           tx.pure.u256(publicKeyToU256(trader.user.minaPublicKey)),
           tx.pure.u64(amount),
@@ -276,8 +276,8 @@ describe("Topup DEX users", async () => {
       throw new Error("PACKAGE_ID is not set");
     }
 
-    if (!objectID) {
-      throw new Error("OBJECT_ID is not set");
+    if (!dexID) {
+      throw new Error("DEX_ID is not set");
     }
 
     if (!poolID) {
@@ -307,7 +307,7 @@ describe("Topup DEX users", async () => {
     const tx = new Transaction();
 
     const tradeArguments = [
-      tx.object(objectID),
+      tx.object(dexID),
       tx.object(poolID),
       tx.pure.u256(publicKeyToU256(bob.minaPublicKey)),
       tx.pure.u256(publicKeyToU256(alice.minaPublicKey)),

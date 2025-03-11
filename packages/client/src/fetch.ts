@@ -1,8 +1,15 @@
 import { suiClient } from "./sui-client.js";
 import { publicKeyToU256 } from "./public-key.js";
-import { UserTradingAccount } from "./types.js";
+import {
+  UserTradingAccount,
+  OperationEvent,
+  RawOperationEvent,
+  convertRawOperationEvent,
+} from "./types.js";
+import { SuiEvent } from "@mysten/sui/client";
 
 const poolID = process.env.POOL_ID;
+const packageID = process.env.PACKAGE_ID;
 
 export async function fetchSuiObject(objectID: string) {
   console.time("getObject");
@@ -68,4 +75,68 @@ export async function fetchDexAccount(
     }
   }
   return undefined;
+}
+
+export async function fetchEvents(params: {
+  packageID: string;
+  module: string;
+  limit?: number;
+}): Promise<SuiEvent[] | undefined> {
+  const { packageID, module, limit } = params;
+
+  console.time("queryEvents");
+  try {
+    const data = await suiClient.queryEvents({
+      query: {
+        MoveModule: {
+          package: packageID,
+          module,
+        },
+      },
+      limit: limit || 200,
+      order: "descending",
+    });
+    console.timeEnd("queryEvents");
+    return data?.data;
+  } catch (error) {
+    console.timeEnd("queryEvents");
+    console.error("error", error);
+    return undefined;
+  }
+}
+
+export async function fetchDexEvents(params: {
+  sequences?: number[];
+  limit?: number;
+}): Promise<OperationEvent[] | undefined> {
+  const { sequences, limit } = params;
+  console.log("fetchDexEvents", params);
+  if (!packageID) {
+    throw new Error("PACKAGE_ID is not set");
+  }
+
+  const events = await fetchEvents({
+    packageID,
+    module: "trade",
+    limit: limit ?? (sequences?.length ? sequences.length * 10 : 200),
+  });
+  const filteredEvents: OperationEvent[] | undefined = events
+    ?.filter((event) => event?.type?.includes("::trade::Operation"))
+    .map((event) => {
+      return {
+        type: event.type?.split("::").at(-1),
+        details: (event?.parsedJson as any)?.details,
+        operation: (event?.parsedJson as any)?.operation,
+      } as RawOperationEvent;
+    })
+    .map(convertRawOperationEvent)
+    ?.filter((event) => {
+      console.log("event 1", event);
+      if (sequences) {
+        return sequences.includes(event?.operation?.sequence);
+      }
+      return true;
+    });
+  console.log("events", filteredEvents);
+  return filteredEvents;
 }

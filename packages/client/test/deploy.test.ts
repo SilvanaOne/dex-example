@@ -31,7 +31,7 @@ userSecretKeys.map((secretKey) => {
 });
 
 let packageID: string | undefined = undefined;
-let objectID: string | undefined = undefined;
+let dexID: string | undefined = undefined;
 let poolID: string | undefined = undefined;
 let dexObjects: DexObjects | undefined = undefined;
 
@@ -57,17 +57,23 @@ describe("Deploy DEX contracts", async () => {
         change.objectType.includes("trade::DEX") &&
         !change.objectType.includes("display")
       ) {
-        objectID = change.objectId;
+        dexID = change.objectId;
       }
     });
     console.log("Published DEX contract:", {
       digest,
       events,
       packageID,
-      objectID,
+      dexID,
     });
 
-    await waitTx(digest);
+    const waitResult = await waitTx(digest);
+    if (waitResult.errors) {
+      console.log(`Errors for tx ${digest}:`, waitResult.errors);
+    }
+    assert.ok(!waitResult.errors, "publish transaction failed");
+    assert.ok(packageID, "package ID is not set");
+    assert.ok(dexID, "DEX ID is not set");
   });
 
   it("should create tokens, pool and setup public keys", async () => {
@@ -75,8 +81,8 @@ describe("Deploy DEX contracts", async () => {
       throw new Error("PACKAGE_ID is not set");
     }
 
-    if (!objectID) {
-      throw new Error("OBJECT_ID is not set");
+    if (!dexID) {
+      throw new Error("DEX_ID is not set");
     }
     const { address, keypair } = await getKey({
       secretKey: adminSecretKey,
@@ -105,7 +111,7 @@ describe("Deploy DEX contracts", async () => {
             ctx: &mut TxContext,
     */
     const baseTokenArguments = [
-      tx.object(objectID),
+      tx.object(dexID),
       tx.pure.u256(publicKeyToU256(baseToken.minaPublicKey)),
       tx.pure.string(baseToken.minaPublicKey),
       tx.pure.u256(TokenId.fromBase58(baseToken.tokenId).toBigInt()),
@@ -116,7 +122,7 @@ describe("Deploy DEX contracts", async () => {
     ];
 
     const quoteTokenArguments = [
-      tx.object(objectID),
+      tx.object(dexID),
       tx.pure.u256(publicKeyToU256(quoteToken.minaPublicKey)),
       tx.pure.string(quoteToken.minaPublicKey),
       tx.pure.u256(TokenId.fromBase58(quoteToken.tokenId).toBigInt()),
@@ -153,7 +159,7 @@ describe("Deploy DEX contracts", async () => {
     */
 
     const poolArguments = [
-      tx.object(objectID),
+      tx.object(dexID),
       tx.object(SUI_CLOCK_OBJECT_ID),
       tx.pure.string(pool.name),
       tx.pure.u256(publicKeyToU256(pool.minaPublicKey)),
@@ -177,7 +183,7 @@ describe("Deploy DEX contracts", async () => {
     */
 
     const publicKeyArguments = [
-      tx.object(objectID),
+      tx.object(dexID),
       tx.pure.vector("u8", validator.getPublicKey().toRawBytes()),
     ];
 
@@ -217,6 +223,7 @@ describe("Deploy DEX contracts", async () => {
       console.log(`Errors for tx ${digest}:`, waitResult.errors);
     }
     assert.ok(!waitResult.errors, "publish transaction failed");
+    assert.ok(poolID, "pool ID is not set");
   });
 
   it("should create users", async () => {
@@ -224,8 +231,8 @@ describe("Deploy DEX contracts", async () => {
       throw new Error("PACKAGE_ID is not set");
     }
 
-    if (!objectID) {
-      throw new Error("OBJECT_ID is not set");
+    if (!dexID) {
+      throw new Error("DEX_ID is not set");
     }
 
     if (!poolID) {
@@ -259,7 +266,7 @@ describe("Deploy DEX contracts", async () => {
     */
 
     const faucetAccountArguments = [
-      tx.object(objectID),
+      tx.object(dexID),
       tx.object(poolID),
       tx.pure.u256(publicKeyToU256(faucet.minaPublicKey)),
       tx.pure.string(faucet.minaPublicKey),
@@ -278,7 +285,7 @@ describe("Deploy DEX contracts", async () => {
     });
 
     const liquidityProviderAccountArguments = [
-      tx.object(objectID),
+      tx.object(dexID),
       tx.object(poolID),
       tx.pure.u256(publicKeyToU256(liquidityProvider.minaPublicKey)),
       tx.pure.string(liquidityProvider.minaPublicKey),
@@ -297,7 +304,7 @@ describe("Deploy DEX contracts", async () => {
     });
 
     const aliceAccountArguments = [
-      tx.object(objectID),
+      tx.object(dexID),
       tx.object(poolID),
       tx.pure.u256(publicKeyToU256(alice.minaPublicKey)),
       tx.pure.string(alice.minaPublicKey),
@@ -316,7 +323,7 @@ describe("Deploy DEX contracts", async () => {
     });
 
     const bobAccountArguments = [
-      tx.object(objectID),
+      tx.object(dexID),
       tx.object(poolID),
       tx.pure.u256(publicKeyToU256(bob.minaPublicKey)),
       tx.pure.string(bob.minaPublicKey),
@@ -354,7 +361,7 @@ describe("Deploy DEX contracts", async () => {
   });
   it("should save object IDs to .env.contracts", async () => {
     const envContent = `PACKAGE_ID=${packageID}
-OBJECT_ID=${objectID}
+DEX_ID=${dexID}
 POOL_ID=${poolID}`;
     await writeFile(".env.contracts", envContent);
   });

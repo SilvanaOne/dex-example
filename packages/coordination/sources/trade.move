@@ -68,7 +68,6 @@ public struct Token has key, store {
 }
 
 public struct TokenCreateEvent has copy, drop {
-    id: ID,
     address: address,
     publicKey: u256,
     publicKeyBase58: String,
@@ -87,7 +86,6 @@ const OPERATION_TRANSFER_BASE_TOKEN: u8 = 5;
 const OPERATION_TRANSFER_QUOTE_TOKEN: u8 = 6;
 
 public struct ActionCreateAccount has copy, drop {
-    id: ID,
     address: address,
     publicKey: u256,
     publicKeyBase58: String,
@@ -197,7 +195,6 @@ public struct Pool has key, store {
 }
 
 public struct PoolCreateEvent has copy, drop {
-    id: ID,
     address: address,
     name: String,
     publicKey: u256,
@@ -206,11 +203,18 @@ public struct PoolCreateEvent has copy, drop {
     quoteTokenId: u256,
 }
 
-public struct Block has key, store {
+public struct BlockState has key, store {
     id: UID,
     name: String,
     block_number: u64,
     state: VecMap<u256, UserTradingAccount>,
+}
+
+public struct Block has key, store {
+    id: UID,
+    name: String,
+    block_number: u64,
+    block_state: address,
     timestamp: u64,
     time_since_last_block: u64,
     number_of_transactions: u64,
@@ -221,13 +225,16 @@ public struct Block has key, store {
     proof_data_availability: Option<String>,
     mina_tx_hash: Option<String>,
     mina_tx_included_in_block: Option<u64>,
+    previous_block_address: Option<address>,
 }
 
 public struct BlockEvent has copy, drop {
-    id: ID,
+    address: address,
     name: String,
     block_number: u64,
     timestamp: u64,
+    block_state: address,
+    previous_block_address: Option<address>,
     time_since_last_block: u64,
     number_of_transactions: u64,
     sequences: vector<u64>,
@@ -251,12 +258,13 @@ public struct DEX has key, store {
     block_number: u64,
     poolId: Option<ID>,
     poolAddress: Option<address>,
+    last_block_address: Option<address>,
     tokens: VecMap<u256, Token>,
     isPaused: bool,
 }
 
 public struct DEXCreateEvent has copy, drop {
-    id: ID,
+    address: address,
     admin: address,
     version: u32,
     actionsState: vector<u8>,
@@ -309,10 +317,11 @@ fun init(otw: TRADE, ctx: &mut TxContext) {
         poolAddress: option::none(),
         isPaused: true,
         tokens: empty<u256, Token>(),
+        last_block_address: option::none(),
     };
 
     event::emit(DEXCreateEvent {
-        id: dex.id.to_inner(),
+        address: dex.id.to_address(),
         admin: dex.admin,
         version: dex.version,
         actionsState: dex.actionsState,
@@ -364,9 +373,6 @@ fun init(otw: TRADE, ctx: &mut TxContext) {
     let token_keys = vector[
         b"name".to_string(),
         b"link".to_string(),
-        b"image_url".to_string(),
-        b"thumbnail_url".to_string(),
-        b"description".to_string(),
         b"project_url".to_string(),
         b"creator".to_string(),
     ];
@@ -374,9 +380,6 @@ fun init(otw: TRADE, ctx: &mut TxContext) {
     let token_values = vector[
         b"{name}".to_string(),
         b"https://minascan.io/devnet/account/{publicKeyBase58}".to_string(),
-        b"{image}".to_string(),
-        b"{image}".to_string(),
-        b"{description}".to_string(),
         b"https://dex.silvana.dev".to_string(),
         b"DFST".to_string(),
     ];
@@ -413,15 +416,43 @@ fun init(otw: TRADE, ctx: &mut TxContext) {
         ctx,
     );
 
+    let block_keys = vector[
+        b"name".to_string(),
+        b"link".to_string(),
+        b"image_url".to_string(),
+        b"thumbnail_url".to_string(),
+        b"description".to_string(),
+        b"project_url".to_string(),
+        b"creator".to_string(),
+    ];
+
+    let block_values = vector[
+        b"{name}".to_string(),
+        b"https://walruscan.com/testnet/blob/{state_data_availability}".to_string(),
+        b"{image}".to_string(),
+        b"{image}".to_string(),
+        b"{role}".to_string(),
+        b"https://dex.silvana.dev".to_string(),
+        b"DFST".to_string(),
+    ];
+    let mut display_block = display::new_with_fields<Block>(
+        &publisher,
+        block_keys,
+        block_values,
+        ctx,
+    );
+
     display_dex.update_version();
     display_pool.update_version();
     display_token.update_version();
     display_user.update_version();
+    display_block.update_version();
     transfer::public_transfer(publisher, ctx.sender());
     transfer::public_transfer(display_dex, ctx.sender());
     transfer::public_transfer(display_pool, ctx.sender());
     transfer::public_transfer(display_token, ctx.sender());
     transfer::public_transfer(display_user, ctx.sender());
+    transfer::public_transfer(display_block, ctx.sender());
     transfer::share_object(dex);
 }
 
@@ -459,7 +490,6 @@ public fun create_token(
         image,
     };
     event::emit(TokenCreateEvent {
-        id: token.id.to_inner(),
         address,
         publicKey: token.publicKey,
         publicKeyBase58: token.publicKeyBase58,
@@ -500,7 +530,6 @@ public fun create_pool(
     dex.previous_block_timestamp = timestamp;
 
     event::emit(PoolCreateEvent {
-        id: pool.id.to_inner(),
         address: poolAddress,
         name: pool.name,
         publicKey: pool.publicKey,
@@ -578,7 +607,6 @@ public fun create_account(
     event::emit(OperationCreateAccountEvent {
         operation,
         details: ActionCreateAccount {
-            id: user.id.to_inner(),
             address,
             publicKey: user.publicKey,
             publicKeyBase58: user.publicKeyBase58,
@@ -955,11 +983,20 @@ public fun create_block(dex: &mut DEX, pool: &Pool, clock: &Clock, ctx: &mut TxC
     };
     let mut name: String = b"Silvana DEX Block ".to_string();
     name.append(block_number.to_string());
+    let mut block_state_name: String = b"Silvana DEX Block ".to_string();
+    block_state_name.append(block_number.to_string());
+    block_state_name.append(b" State".to_string());
+    let block_state = BlockState {
+        id: object::new(ctx),
+        name: block_state_name,
+        block_number,
+        state: pool.accounts,
+    };
     let block = Block {
         id: object::new(ctx),
         name,
         block_number,
-        state: pool.accounts,
+        block_state: block_state.id.to_address(),
         timestamp,
         time_since_last_block: timestamp - dex.previous_block_timestamp,
         number_of_transactions: vector::length(&sequences),
@@ -970,26 +1007,30 @@ public fun create_block(dex: &mut DEX, pool: &Pool, clock: &Clock, ctx: &mut TxC
         proof_data_availability: option::none(),
         mina_tx_hash: option::none(),
         mina_tx_included_in_block: option::none(),
+        previous_block_address: dex.last_block_address,
     };
 
     dex.previous_block_sequence = dex.sequence;
     dex.previous_block_actions_state = dex.actionsState;
     dex.previous_block_timestamp = timestamp;
     dex.block_number = block_number;
+    dex.last_block_address = option::some(block.id.to_address());
     event::emit(BlockEvent {
-        id: block.id.to_inner(),
+        address: block.id.to_address(),
         block_number,
         name,
         timestamp,
+        block_state: block_state.id.to_address(),
+        previous_block_address: block.previous_block_address,
         time_since_last_block: timestamp - dex.previous_block_timestamp,
         number_of_transactions: vector::length(&sequences),
         sequences,
         start_action_state: dex.previous_block_actions_state,
         end_action_state: dex.actionsState,
-        state_data_availability: option::none(),
+        state_data_availability: block.state_data_availability,
         proof_data_availability: option::none(),
     });
-
+    transfer::transfer(block_state, ctx.sender());
     transfer::transfer(block, ctx.sender());
 }
 
@@ -999,10 +1040,12 @@ public fun update_block_state_data_availability(
 ) {
     block.state_data_availability = option::some(state_data_availability);
     event::emit(BlockEvent {
-        id: block.id.to_inner(),
+        address: block.id.to_address(),
         block_number: block.block_number,
         name: block.name,
         timestamp: block.timestamp,
+        block_state: block.block_state,
+        previous_block_address: block.previous_block_address,
         time_since_last_block: block.time_since_last_block,
         number_of_transactions: vector::length(&block.sequences),
         sequences: block.sequences,
@@ -1019,10 +1062,12 @@ public fun update_block_proof_data_availability(
 ) {
     block.proof_data_availability = option::some(proof_data_availability);
     event::emit(BlockEvent {
-        id: block.id.to_inner(),
-        name: block.name,
+        address: block.id.to_address(),
         block_number: block.block_number,
+        name: block.name,
         timestamp: block.timestamp,
+        block_state: block.block_state,
+        previous_block_address: block.previous_block_address,
         time_since_last_block: block.time_since_last_block,
         number_of_transactions: vector::length(&block.sequences),
         sequences: block.sequences,
@@ -1036,10 +1081,12 @@ public fun update_block_proof_data_availability(
 public fun update_block_mina_tx_hash(block: &mut Block, mina_tx_hash: String) {
     block.mina_tx_hash = option::some(mina_tx_hash);
     event::emit(BlockEvent {
-        id: block.id.to_inner(),
-        name: block.name,
+        address: block.id.to_address(),
         block_number: block.block_number,
+        name: block.name,
         timestamp: block.timestamp,
+        block_state: block.block_state,
+        previous_block_address: block.previous_block_address,
         time_since_last_block: block.time_since_last_block,
         number_of_transactions: vector::length(&block.sequences),
         sequences: block.sequences,
@@ -1056,10 +1103,12 @@ public fun update_block_mina_tx_included_in_block(
 ) {
     block.mina_tx_included_in_block = option::some(mina_tx_included_in_block);
     event::emit(BlockEvent {
-        id: block.id.to_inner(),
-        name: block.name,
+        address: block.id.to_address(),
         block_number: block.block_number,
+        name: block.name,
         timestamp: block.timestamp,
+        block_state: block.block_state,
+        previous_block_address: block.previous_block_address,
         time_since_last_block: block.time_since_last_block,
         number_of_transactions: vector::length(&block.sequences),
         sequences: block.sequences,

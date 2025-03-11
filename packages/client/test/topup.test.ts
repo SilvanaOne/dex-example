@@ -20,7 +20,7 @@ if (!faucetSecretKey) {
 }
 
 const packageID = process.env.PACKAGE_ID;
-const objectID = process.env.OBJECT_ID;
+const dexID = process.env.DEX_ID;
 const poolID = process.env.POOL_ID;
 let dexObjects: DexObjects | undefined = undefined;
 
@@ -55,8 +55,8 @@ describe("Topup DEX users", async () => {
       throw new Error("PACKAGE_ID is not set");
     }
 
-    if (!objectID) {
-      throw new Error("OBJECT_ID is not set");
+    if (!dexID) {
+      throw new Error("DEX_ID is not set");
     }
 
     if (!poolID) {
@@ -138,7 +138,7 @@ describe("Topup DEX users", async () => {
       nonce++;
 
       const userTopupBaseTokenArguments = [
-        tx.object(objectID),
+        tx.object(dexID),
         tx.object(poolID),
         tx.pure.u256(publicKeyToU256(faucet.minaPublicKey)),
         tx.pure.u256(publicKeyToU256(user.minaPublicKey)),
@@ -149,7 +149,7 @@ describe("Topup DEX users", async () => {
       ];
 
       const userTopupQuoteTokenArguments = [
-        tx.object(objectID),
+        tx.object(dexID),
         tx.object(poolID),
         tx.pure.u256(publicKeyToU256(faucet.minaPublicKey)),
         tx.pure.u256(publicKeyToU256(user.minaPublicKey)),
