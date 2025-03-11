@@ -1,5 +1,5 @@
 import { Secp256k1Keypair } from "@mysten/sui/keypairs/secp256k1";
-import { Transaction } from "@mysten/sui/transactions";
+import { Transaction, TransactionResult } from "@mysten/sui/transactions";
 import { SignatureWithBytes } from "@mysten/sui/cryptography";
 import { suiClient } from "./sui-client.js";
 
@@ -8,17 +8,19 @@ export async function buildPublishTx(params: {
   dependencies: string[];
   address: string;
   keypair: Secp256k1Keypair;
-}): Promise<SignatureWithBytes> {
+}): Promise<{
+  signedTx: SignatureWithBytes;
+}> {
   const { modules, dependencies, address, keypair } = params;
   const tx = new Transaction();
-  const publishedTx = tx.publish({
+  const { Result: publishedDex } = tx.publish({
     modules,
     dependencies,
   });
-  tx.transferObjects(
+  const { Result: dex } = tx.transferObjects(
     [
       {
-        Result: publishedTx.Result,
+        Result: publishedDex,
       },
     ],
     address
@@ -41,12 +43,12 @@ export async function buildPublishTx(params: {
   //console.log("tx", await tx.toJSON());
   tx.setGasBudget(100_000_000);
 
-  console.log("tx", await tx.toJSON());
+  //console.log("tx", await tx.toJSON());
   console.time("sign");
   const signedTx = await tx.sign({
     signer: keypair,
     client: suiClient,
   });
   console.timeEnd("sign");
-  return signedTx;
+  return { signedTx };
 }

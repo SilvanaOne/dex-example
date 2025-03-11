@@ -1,26 +1,16 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import {
-  CoinBalance,
-  getFullnodeUrl,
-  SuiClient,
-  SuiEvent,
-} from "@mysten/sui/client";
-import { bcs } from "@mysten/sui/bcs";
-import { MIST_PER_SUI } from "@mysten/sui/utils";
-import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
-import { Secp256k1Keypair } from "@mysten/sui/keypairs/secp256k1";
-import { Transaction, TransactionArgument } from "@mysten/sui/transactions";
-import crypto from "node:crypto";
-import secp256k1 from "secp256k1";
+import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
+import { Transaction } from "@mysten/sui/transactions";
 import { getKey } from "../src/key.js";
-import { SignatureWithBytes } from "@mysten/sui/cryptography";
 import { writeFile } from "node:fs/promises";
 import { suiClient } from "../src/sui-client.js";
 import { buildPublishTx } from "../src/publish.js";
 import { buildMovePackage } from "../src/build.js";
 import { executeTx, waitTx } from "../src/execute.js";
-import { PrivateKey, PublicKey, TokenId } from "o1js";
+import { TokenId } from "o1js";
+import { publicKeyToU256 } from "../src/public-key.js";
+import { createInitialState, DexObjects } from "./helpers/dex.js";
 
 const userSecretKeys: string[] = [
   process.env.SECRET_KEY_1!,
@@ -43,6 +33,7 @@ userSecretKeys.map((secretKey) => {
 let packageID = process.env.PACKAGE_ID;
 let objectID = process.env.OBJECT_ID;
 let poolID = process.env.POOL_ID;
+let dexObjects: DexObjects | undefined = undefined;
 
 describe("Deploy DEX contracts", async () => {
   it("should publish SUI DEX package", async () => {
@@ -51,7 +42,7 @@ describe("Deploy DEX contracts", async () => {
       name: "admin",
     });
     const { modules, dependencies } = await buildMovePackage("../coordination");
-    const signedTx = await buildPublishTx({
+    const { signedTx } = await buildPublishTx({
       modules,
       dependencies,
       address,
@@ -78,7 +69,7 @@ describe("Deploy DEX contracts", async () => {
     await waitTx(digest);
   });
 
-  it("should create pool", async () => {
+  it("should create tokens, pool and setup public keys", async () => {
     if (!packageID) {
       throw new Error("PACKAGE_ID is not set");
     }
@@ -97,125 +88,257 @@ describe("Deploy DEX contracts", async () => {
       topup: false,
     });
 
-    const poolPublicKey = PrivateKey.random().toPublicKey();
-    const baseTokenPublicKey = PrivateKey.random().toPublicKey();
-    const baseTokenTokenId = TokenId.derive(baseTokenPublicKey);
-    const quoteTokenPublicKey = PrivateKey.random().toPublicKey();
-    const quoteTokenTokenId = TokenId.derive(quoteTokenPublicKey);
+    dexObjects = createInitialState();
+    const { baseToken, quoteToken, pool } = dexObjects;
     const tx = new Transaction();
 
     /*
-        public fun create_pool(
-            dex: &mut DEX,
-            name: String,
-            publicKey: MinaPublicKey,
-            baseToken: Token,
-            quoteToken: Token,
-            ctx: &mut TxContext,
-        )
-
-        public struct Token has copy, drop, store {
-            publicKey: MinaPublicKey,
-            tokenId: u256,
-            token: String,
-            name: String,
-            description: String,
-        }
+      public fun create_token(
+          dex: &mut DEX,
+          publicKey: u256,
+          publicKeyBase58: String,
+          tokenId: u256,
+          token: String,
+          name: String,
+          description: String,
+          image: String,
+          ctx: &mut TxContext,
     */
+    const baseTokenArguments = [
+      tx.object(objectID),
+      tx.pure.u256(publicKeyToU256(baseToken.minaPublicKey)),
+      tx.pure.string(baseToken.minaPublicKey),
+      tx.pure.u256(TokenId.fromBase58(baseToken.tokenId).toBigInt()),
+      tx.pure.string(baseToken.token),
+      tx.pure.string(baseToken.name),
+      tx.pure.string(baseToken.description),
+      tx.pure.string(baseToken.image),
+    ];
 
-    const MinaPublicKey = bcs.struct("MinaPublicKey", {
-      x: bcs.u256(),
-      isOdd: bcs.bool(),
-    });
-    const Token = bcs.struct("Token", {
-      publicKey: MinaPublicKey,
-      tokenId: bcs.u256(),
-      token: bcs.string(),
-      name: bcs.string(),
-      description: bcs.string(),
-    });
+    const quoteTokenArguments = [
+      tx.object(objectID),
+      tx.pure.u256(publicKeyToU256(quoteToken.minaPublicKey)),
+      tx.pure.string(quoteToken.minaPublicKey),
+      tx.pure.u256(TokenId.fromBase58(quoteToken.tokenId).toBigInt()),
+      tx.pure.string(quoteToken.token),
+      tx.pure.string(quoteToken.name),
+      tx.pure.string(quoteToken.description),
+      tx.pure.string(quoteToken.image),
+    ];
 
-    const NumEvent = bcs.struct("NumEvent", {
-      num1: bcs.u256(),
-      num2: bcs.u256(),
+    tx.moveCall({
+      package: packageID,
+      module: "trade",
+      function: "create_token",
+      arguments: baseTokenArguments,
     });
 
     tx.moveCall({
       package: packageID,
       module: "trade",
-      function: "num_event",
-      arguments: [
-        tx.pure(
-          NumEvent.serialize({
-            num1: 1,
-            num2: 2,
-          }).toBytes()
-        ),
-      ],
+      function: "create_token",
+      arguments: quoteTokenArguments,
     });
 
-    // tx.moveCall({
-    //   package: packageID,
-    //   module: "trade",
-    //   function: "create_pool",
-    //   arguments: [
-    //     tx.object(objectID),
-    //     tx.pure.string("DETH/DUSD"),
-    //     tx.pure(
-    //       MinaPublicKey.serialize({
-    //         x: poolPublicKey.x.toBigInt(),
-    //         isOdd: poolPublicKey.isOdd.toBoolean(),
-    //       })
-    //     ),
-    //     tx.pure(
-    //       Token.serialize({
-    //         publicKey: {
-    //           x: baseTokenPublicKey.x.toBigInt(),
-    //           isOdd: baseTokenPublicKey.isOdd.toBoolean(),
-    //         },
-    //         tokenId: baseTokenTokenId.toBigInt(),
-    //         token: "DETH",
-    //         name: "Wrapped Ethereum",
-    //         description: "Wrapped Ethereum token on Silvana DEX",
-    //       })
-    //     ),
-    //     tx.pure(
-    //       Token.serialize({
-    //         publicKey: {
-    //           x: quoteTokenPublicKey.x.toBigInt(),
-    //           isOdd: quoteTokenPublicKey.isOdd.toBoolean(),
-    //         },
-    //         tokenId: quoteTokenTokenId.toBigInt(),
-    //         token: "DUSD",
-    //         name: "Wrapped USD",
-    //         description: "Wrapped USD token on Silvana DEX",
-    //       })
-    //     ),
-    //   ],
-    // });
+    /*
+        public fun create_pool(
+            dex: &mut DEX,
+            clock: &Clock,
+            name: String,
+            publicKey: u256,
+            publicKeyBase58: String,
+            baseTokenId: u256,
+            quoteTokenId: u256,
+            ctx: &mut TxContext,
+    */
+
+    const poolArguments = [
+      tx.object(objectID),
+      tx.object(SUI_CLOCK_OBJECT_ID),
+      tx.pure.string(pool.name),
+      tx.pure.u256(publicKeyToU256(pool.minaPublicKey)),
+      tx.pure.string(pool.minaPublicKey),
+      tx.pure.u256(TokenId.fromBase58(pool.baseTokenId).toBigInt()),
+      tx.pure.u256(TokenId.fromBase58(pool.quoteTokenId).toBigInt()),
+    ];
+
+    tx.moveCall({
+      package: packageID,
+      module: "trade",
+      function: "create_pool",
+      arguments: poolArguments,
+    });
+    /*
+        public fun set_public_key(
+            dex: &mut DEX,
+            public_key: vector<u8>,
+            clock: &Clock,
+            ctx: &mut TxContext,
+    */
+
+    const publicKeyArguments = [
+      tx.object(objectID),
+      tx.pure.vector("u8", validator.getPublicKey().toRawBytes()),
+    ];
+
+    tx.moveCall({
+      package: packageID,
+      module: "trade",
+      function: "set_public_key",
+      arguments: publicKeyArguments,
+    });
 
     tx.setSender(address);
-    tx.setGasBudget(10_000_000);
+    const signedTx = await tx.sign({
+      signer: keypair,
+      client: suiClient,
+    });
+
+    const { tx: initTx, digest, events } = await executeTx(signedTx);
+    initTx.objectChanges?.map((change) => {
+      if (
+        change.type === "created" &&
+        change.objectType.includes("trade::Pool")
+      ) {
+        poolID = change.objectId;
+      }
+    });
+    console.log("Created initial state:", {
+      initTx,
+      objectChanges: initTx.objectChanges,
+      digest,
+      events,
+      poolID,
+    });
+    await waitTx(digest);
+  });
+
+  it("should create users", async () => {
+    if (!packageID) {
+      throw new Error("PACKAGE_ID is not set");
+    }
+
+    if (!objectID) {
+      throw new Error("OBJECT_ID is not set");
+    }
+
+    if (!poolID) {
+      throw new Error("POOL_ID is not set");
+    }
+
+    if (!dexObjects) {
+      throw new Error("DEX_OBJECTS is not set");
+    }
+
+    const { address, keypair } = await getKey({
+      secretKey: adminSecretKey,
+      name: "admin",
+    });
+
+    const { faucet, liquidityProvider, alice, bob } = dexObjects;
+    const tx = new Transaction();
+
+    /*
+        public fun create_account(
+            dex: &mut DEX,
+            pool: &mut Pool,
+            publicKey: u256,
+            publicKeyBase58: String,
+            role: String,
+            image: String,
+            name: String,
+            baseBalance: u64,
+            quoteBalance: u64,
+            ctx: &mut TxContext,
+    */
+
+    const faucetAccountArguments = [
+      tx.object(objectID),
+      tx.object(poolID),
+      tx.pure.u256(publicKeyToU256(faucet.minaPublicKey)),
+      tx.pure.string(faucet.minaPublicKey),
+      tx.pure.string(faucet.role),
+      tx.pure.string(faucet.image),
+      tx.pure.string(faucet.name),
+      tx.pure.u64(faucet.account.baseTokenBalance.amount),
+      tx.pure.u64(faucet.account.quoteTokenBalance.amount),
+    ];
+
+    tx.moveCall({
+      package: packageID,
+      module: "trade",
+      function: "create_account",
+      arguments: faucetAccountArguments,
+    });
+
+    const liquidityProviderAccountArguments = [
+      tx.object(objectID),
+      tx.object(poolID),
+      tx.pure.u256(publicKeyToU256(liquidityProvider.minaPublicKey)),
+      tx.pure.string(liquidityProvider.minaPublicKey),
+      tx.pure.string(liquidityProvider.role),
+      tx.pure.string(liquidityProvider.image),
+      tx.pure.string(liquidityProvider.name),
+      tx.pure.u64(liquidityProvider.account.baseTokenBalance.amount),
+      tx.pure.u64(liquidityProvider.account.quoteTokenBalance.amount),
+    ];
+
+    tx.moveCall({
+      package: packageID,
+      module: "trade",
+      function: "create_account",
+      arguments: liquidityProviderAccountArguments,
+    });
+
+    const aliceAccountArguments = [
+      tx.object(objectID),
+      tx.object(poolID),
+      tx.pure.u256(publicKeyToU256(alice.minaPublicKey)),
+      tx.pure.string(alice.minaPublicKey),
+      tx.pure.string(alice.role),
+      tx.pure.string(alice.image),
+      tx.pure.string(alice.name),
+      tx.pure.u64(alice.account.baseTokenBalance.amount),
+      tx.pure.u64(alice.account.quoteTokenBalance.amount),
+    ];
+
+    tx.moveCall({
+      package: packageID,
+      module: "trade",
+      function: "create_account",
+      arguments: aliceAccountArguments,
+    });
+
+    const bobAccountArguments = [
+      tx.object(objectID),
+      tx.object(poolID),
+      tx.pure.u256(publicKeyToU256(bob.minaPublicKey)),
+      tx.pure.string(bob.minaPublicKey),
+      tx.pure.string(bob.role),
+      tx.pure.string(bob.image),
+      tx.pure.string(bob.name),
+      tx.pure.u64(bob.account.baseTokenBalance.amount),
+      tx.pure.u64(bob.account.quoteTokenBalance.amount),
+    ];
+
+    tx.moveCall({
+      package: packageID,
+      module: "trade",
+      function: "create_account",
+      arguments: bobAccountArguments,
+    });
+
+    tx.setSender(address);
 
     const signedTx = await tx.sign({
       signer: keypair,
       client: suiClient,
     });
 
-    const { tx: poolTx, digest, events } = await executeTx(signedTx);
-    poolTx.objectChanges?.map((change) => {
-      if (
-        change.type === "created" &&
-        change.objectType.includes("trade::DEX")
-      ) {
-        poolID = change.objectId;
-      }
-    });
-    console.log("Created pool:", {
-      poolTx,
+    const { digest, events } = await executeTx(signedTx);
+    console.log("Created users:", {
       digest,
       events,
-      poolID,
     });
     await waitTx(digest);
   });
@@ -224,5 +347,17 @@ describe("Deploy DEX contracts", async () => {
 OBJECT_ID=${objectID}
 POOL_ID=${poolID}`;
     await writeFile(".env.contracts", envContent);
+  });
+
+  it("should save DEX objects to data folder", async () => {
+    await writeFile(
+      "./data/dex-objects.json",
+      JSON.stringify(
+        { dexObjects },
+        (_, value) =>
+          typeof value === "bigint" ? value.toString() + "n" : value,
+        2
+      )
+    );
   });
 });
