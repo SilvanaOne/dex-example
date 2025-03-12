@@ -166,6 +166,7 @@ describe("Deploy DEX contracts", async () => {
       tx.pure.string(pool.minaPublicKey),
       tx.pure.u256(TokenId.fromBase58(pool.baseTokenId).toBigInt()),
       tx.pure.u256(TokenId.fromBase58(pool.quoteTokenId).toBigInt()),
+      tx.pure.u64(pool.lastPrice),
     ];
 
     tx.moveCall({
@@ -363,7 +364,7 @@ describe("Deploy DEX contracts", async () => {
     const envContent = `PACKAGE_ID=${packageID}
 DEX_ID=${dexID}
 POOL_ID=${poolID}`;
-    await writeFile(".env.contracts", envContent);
+    await writeFile(".env.public", envContent);
   });
 
   it("should save DEX objects to data folder", async () => {

@@ -176,17 +176,19 @@ describe("DEX Block", async () => {
           if (!item?.fields?.key || typeof item?.fields?.key !== "string") {
             throw new Error("block state key is not a string");
           }
-          const key = u256ToPublicKey(item.fields.key).toBase58();
+          const key = u256ToPublicKey(BigInt(item.fields.key)).toBase58();
           const value = item.fields.value.fields;
           const account: UserTradingAccount = {
             baseTokenBalance: {
               amount: BigInt(value.baseTokenBalance.fields.amount),
+              stakedAmount: BigInt(value.baseTokenBalance.fields.stakedAmount),
               borrowedAmount: BigInt(
                 value.baseTokenBalance.fields.borrowedAmount
               ),
             },
             quoteTokenBalance: {
               amount: BigInt(value.quoteTokenBalance.fields.amount),
+              stakedAmount: BigInt(value.quoteTokenBalance.fields.stakedAmount),
               borrowedAmount: BigInt(
                 value.quoteTokenBalance.fields.borrowedAmount
               ),

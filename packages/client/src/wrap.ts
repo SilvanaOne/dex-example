@@ -8,13 +8,27 @@ import crypto from "node:crypto";
 
 const DEX_SIGNATURE_CONTEXT = 7738487874684489969637964886483n;
 
+/*
+/*
+    poolPublicKey: u256,
+    operation: u8,
+    accountPublicKey: u256,
+    nonce: u64,
+    baseTokenAmount: Option<u64>,
+    quoteTokenAmount: Option<u64>,
+    price: Option<u64>,
+    receiverPublicKey: Option<u256>,
+    receiverNonce: Option<u64>,
+*/
+
 export async function wrapMinaSignature(params: {
   minaSignature: MinaSignature;
   minaPublicKey: string;
   poolPublicKey: string;
   operation: Operation;
   nonce: number;
-  amount?: bigint; // u64
+  baseTokenAmount?: bigint; // u64
+  quoteTokenAmount?: bigint; // u64
   price?: bigint; // u64
   receiverPublicKey?: string;
 }): Promise<{
@@ -29,7 +43,8 @@ export async function wrapMinaSignature(params: {
     poolPublicKey,
     operation,
     nonce,
-    amount,
+    baseTokenAmount,
+    quoteTokenAmount,
     price,
     receiverPublicKey,
   } = params;
@@ -40,7 +55,8 @@ export async function wrapMinaSignature(params: {
     Field(operation),
     Field(nonce),
   ];
-  if (amount !== undefined) minaData.push(Field(amount));
+  if (baseTokenAmount !== undefined) minaData.push(Field(baseTokenAmount));
+  if (quoteTokenAmount !== undefined) minaData.push(Field(quoteTokenAmount));
   if (price !== undefined) minaData.push(Field(price));
   if (receiverPublicKey !== undefined)
     minaData.push(
@@ -57,17 +73,23 @@ export async function wrapMinaSignature(params: {
 
   let suiData = new Uint8Array([
     ...bcs.u256().serialize(DEX_SIGNATURE_CONTEXT).toBytes(),
-    ...bcs.u256().serialize(publicKeyToU256(minaPublicKey)).toBytes(),
-    ...bcs.u256().serialize(publicKeyToU256(poolPublicKey)).toBytes(),
     ...bcs.u256().serialize(minaSignature.r).toBytes(),
     ...bcs.u256().serialize(minaSignature.s).toBytes(),
+    ...bcs.u256().serialize(publicKeyToU256(poolPublicKey)).toBytes(),
     ...bcs.u8().serialize(operation).toBytes(),
+    ...bcs.u256().serialize(publicKeyToU256(minaPublicKey)).toBytes(),
     ...bcs.u64().serialize(nonce).toBytes(),
   ]);
-  if (amount !== undefined) {
+  if (baseTokenAmount !== undefined) {
     suiData = new Uint8Array([
       ...suiData,
-      ...bcs.u64().serialize(amount).toBytes(),
+      ...bcs.u64().serialize(baseTokenAmount).toBytes(),
+    ]);
+  }
+  if (quoteTokenAmount !== undefined) {
+    suiData = new Uint8Array([
+      ...suiData,
+      ...bcs.u64().serialize(quoteTokenAmount).toBytes(),
     ]);
   }
   if (price !== undefined) {

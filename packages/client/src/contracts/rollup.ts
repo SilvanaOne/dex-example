@@ -6,8 +6,7 @@ import {
   RollupActionBid,
   RollupActionAsk,
   RollupActionTrade,
-  RollupActionTransferBaseToken,
-  RollupActionTransferQuoteToken,
+  RollupActionTransfer,
   RollupUserTradingAccount,
   RollupMinaBalance,
   RollupOrder,
@@ -22,8 +21,7 @@ export enum Operation {
   BID = 2,
   ASK = 3,
   TRADE = 4,
-  TRANSFER_BASE_TOKEN = 5,
-  TRANSFER_QUOTE_TOKEN = 6,
+  TRANSFER = 5,
 }
 */
 
@@ -51,10 +49,12 @@ export const DEXProgram = ZkProgram({
         const account = new RollupUserTradingAccount({
           baseTokenBalance: new RollupMinaBalance({
             amount: action.baseBalance,
+            stakedAmount: UInt64.zero,
             borrowedAmount: UInt64.zero,
           }),
           quoteTokenBalance: new RollupMinaBalance({
             amount: action.quoteBalance,
+            stakedAmount: UInt64.zero,
             borrowedAmount: UInt64.zero,
           }),
           bid: new RollupOrder({
@@ -99,7 +99,7 @@ export const DEXProgram = ZkProgram({
         const value = map.get(key);
         value.assertEquals(account.hash());
         const quoteAmount = mulDiv({
-          value: action.amount,
+          value: action.baseTokenAmount,
           multiplier: action.price,
           denominator: UInt64.from(1_000_000_000),
         }).result;
@@ -108,16 +108,15 @@ export const DEXProgram = ZkProgram({
           .verify(
             action.userPublicKey,
             getMinaSignatureData({
-              publicKey: action.userPublicKey,
               poolPublicKey: input.poolPublicKey,
               operation: Operation.BID,
               nonce: action.nonce,
-              amount: action.amount,
+              baseTokenAmount: action.baseTokenAmount,
               price: action.price,
             })
           )
           .assertTrue();
-        account.bid.amount = action.amount;
+        account.bid.amount = action.baseTokenAmount;
         account.bid.price = action.price;
         account.nonce = account.nonce.add(1);
         map.set(key, account.hash());
@@ -150,21 +149,22 @@ export const DEXProgram = ZkProgram({
         const key = Poseidon.hashPacked(PublicKey, action.userPublicKey);
         const value = map.get(key);
         value.assertEquals(account.hash());
-        account.baseTokenBalance.amount.assertGreaterThanOrEqual(action.amount);
+        account.baseTokenBalance.amount.assertGreaterThanOrEqual(
+          action.baseTokenAmount
+        );
         action.userSignature
           .verify(
             action.userPublicKey,
             getMinaSignatureData({
-              publicKey: action.userPublicKey,
               poolPublicKey: input.poolPublicKey,
               operation: Operation.ASK,
               nonce: action.nonce,
-              amount: action.amount,
+              baseTokenAmount: action.baseTokenAmount,
               price: action.price,
             })
           )
           .assertTrue();
-        account.ask.amount = action.amount;
+        account.ask.amount = action.baseTokenAmount;
         account.ask.price = action.price;
         account.nonce = account.nonce.add(1);
         map.set(key, account.hash());
@@ -199,8 +199,12 @@ export const DEXProgram = ZkProgram({
         publicOutput: DEXState;
         auxiliaryOutput: DEXMap;
       }> {
-        action.amount.equals(UInt64.zero).assertFalse("amount is zero");
-        action.price.equals(UInt64.zero).assertFalse("price is zero");
+        action.baseTokenAmount
+          .equals(UInt64.zero)
+          .assertFalse("amount is zero");
+        action.quoteTokenAmount
+          .equals(UInt64.zero)
+          .assertFalse("price is zero");
 
         map.root.assertEquals(input.root);
         const buyerKey = Poseidon.hashPacked(PublicKey, action.buyerPublicKey);
@@ -213,40 +217,42 @@ export const DEXProgram = ZkProgram({
         const sellerValue = map.get(sellerKey);
         sellerValue.assertEquals(seller.hash());
 
-        const quoteAmount = mulDiv({
-          value: action.amount,
-          multiplier: action.price,
-          denominator: UInt64.from(1_000_000_000),
-        }).result;
-        quoteAmount.assertEquals(action.quoteAmount); // TODO: check edge cases
-        buyer.quoteTokenBalance.amount.assertGreaterThanOrEqual(quoteAmount);
-        seller.baseTokenBalance.amount.assertGreaterThanOrEqual(action.amount);
+        buyer.quoteTokenBalance.amount.assertGreaterThanOrEqual(
+          action.quoteTokenAmount
+        );
+        seller.baseTokenBalance.amount.assertGreaterThanOrEqual(
+          action.baseTokenAmount
+        );
 
         // Check buyer bid validity
-        buyer.bid.amount.assertGreaterThanOrEqual(action.amount);
-        buyer.bid.price.assertLessThanOrEqual(action.price);
+        buyer.bid.amount.assertGreaterThanOrEqual(action.baseTokenAmount);
+        buyer.bid.price.value
+          .mul(action.baseTokenAmount.value)
+          .assertLessThanOrEqual(action.quoteTokenAmount.value);
 
         // Check seller ask validity
-        seller.ask.amount.assertGreaterThanOrEqual(action.amount);
-        seller.ask.price.assertGreaterThanOrEqual(action.price);
+        seller.ask.amount.assertGreaterThanOrEqual(action.baseTokenAmount);
+        seller.ask.price.value
+          .mul(action.baseTokenAmount.value)
+          .assertLessThanOrEqual(action.quoteTokenAmount.value);
 
         // Update buyer balances
-        buyer.bid.amount = buyer.bid.amount.sub(action.amount);
+        buyer.bid.amount = buyer.bid.amount.sub(action.baseTokenAmount);
         buyer.baseTokenBalance.amount = buyer.baseTokenBalance.amount.add(
-          action.amount
+          action.baseTokenAmount
         );
         buyer.quoteTokenBalance.amount = buyer.quoteTokenBalance.amount.sub(
-          action.quoteAmount
+          action.quoteTokenAmount
         );
         buyer.nonce = buyer.nonce.add(1);
 
         // Update seller balances
-        seller.ask.amount = seller.ask.amount.sub(action.amount);
+        seller.ask.amount = seller.ask.amount.sub(action.baseTokenAmount);
         seller.baseTokenBalance.amount = seller.baseTokenBalance.amount.sub(
-          action.amount
+          action.baseTokenAmount
         );
         seller.quoteTokenBalance.amount = seller.quoteTokenBalance.amount.add(
-          action.quoteAmount
+          action.quoteTokenAmount
         );
         seller.nonce = seller.nonce.add(1);
 
@@ -265,10 +271,10 @@ export const DEXProgram = ZkProgram({
       },
     },
 
-    transferBaseToken: {
+    transfer: {
       privateInputs: [
         DEXMap,
-        RollupActionTransferBaseToken,
+        RollupActionTransfer,
         RollupUserTradingAccount,
         RollupUserTradingAccount,
       ],
@@ -276,14 +282,19 @@ export const DEXProgram = ZkProgram({
       async method(
         input: DEXState,
         map: DEXMap,
-        action: RollupActionTransferBaseToken,
+        action: RollupActionTransfer,
         sender: RollupUserTradingAccount,
         receiver: RollupUserTradingAccount
       ): Promise<{
         publicOutput: DEXState;
         auxiliaryOutput: DEXMap;
       }> {
-        action.amount.equals(UInt64.zero).assertFalse("amount is zero");
+        action.baseTokenAmount
+          .equals(UInt64.zero)
+          .assertFalse("amount is zero");
+        action.quoteTokenAmount
+          .equals(UInt64.zero)
+          .assertFalse("amount is zero");
 
         map.root.assertEquals(input.root);
         const senderKey = Poseidon.hashPacked(
@@ -301,8 +312,12 @@ export const DEXProgram = ZkProgram({
 
         // Verify sender has sufficient balance and no borrowed amounts
         sender.baseTokenBalance.amount.assertGreaterThanOrEqual(
-          action.amount,
-          "insufficient sender balance"
+          action.baseTokenAmount,
+          "insufficient base token sender balance"
+        );
+        sender.quoteTokenBalance.amount.assertGreaterThanOrEqual(
+          action.quoteTokenAmount,
+          "insufficient quote token sender balance"
         );
         sender.baseTokenBalance.borrowedAmount
           .equals(UInt64.zero)
@@ -313,11 +328,11 @@ export const DEXProgram = ZkProgram({
 
         // Verify signature
         const signatureData = getMinaSignatureData({
-          publicKey: action.senderPublicKey,
           poolPublicKey: input.poolPublicKey,
-          operation: Operation.TRANSFER_BASE_TOKEN,
+          operation: Operation.TRANSFER,
           nonce: action.senderNonce,
-          amount: action.amount,
+          baseTokenAmount: action.baseTokenAmount,
+          quoteTokenAmount: action.quoteTokenAmount,
           receiverPublicKey: action.receiverPublicKey,
         });
         action.senderSignature
@@ -326,100 +341,19 @@ export const DEXProgram = ZkProgram({
 
         // Update sender balance
         sender.baseTokenBalance.amount = sender.baseTokenBalance.amount.sub(
-          action.amount
+          action.baseTokenAmount
+        );
+        sender.quoteTokenBalance.amount = sender.quoteTokenBalance.amount.sub(
+          action.quoteTokenAmount
         );
         sender.nonce = sender.nonce.add(1);
 
         // Update receiver balance
         receiver.baseTokenBalance.amount = receiver.baseTokenBalance.amount.add(
-          action.amount
+          action.baseTokenAmount
         );
-        receiver.nonce = receiver.nonce.add(1);
-
-        map.set(senderKey, sender.hash());
-        map.set(receiverKey, receiver.hash());
-
-        return {
-          publicOutput: new DEXState({
-            poolPublicKey: input.poolPublicKey,
-            root: map.root,
-            actionState: input.actionState,
-            sequence: input.sequence.add(1),
-          }),
-          auxiliaryOutput: map,
-        };
-      },
-    },
-
-    transferQuoteToken: {
-      privateInputs: [
-        DEXMap,
-        RollupActionTransferQuoteToken,
-        RollupUserTradingAccount,
-        RollupUserTradingAccount,
-      ],
-      auxiliaryOutput: DEXMap,
-      async method(
-        input: DEXState,
-        map: DEXMap,
-        action: RollupActionTransferQuoteToken,
-        sender: RollupUserTradingAccount,
-        receiver: RollupUserTradingAccount
-      ): Promise<{
-        publicOutput: DEXState;
-        auxiliaryOutput: DEXMap;
-      }> {
-        action.amount.equals(UInt64.zero).assertFalse("amount is zero");
-
-        map.root.assertEquals(input.root);
-        const senderKey = Poseidon.hashPacked(
-          PublicKey,
-          action.senderPublicKey
-        );
-        const receiverKey = Poseidon.hashPacked(
-          PublicKey,
-          action.receiverPublicKey
-        );
-        const senderValue = map.get(senderKey);
-        senderValue.assertEquals(sender.hash());
-        const receiverValue = map.get(receiverKey);
-        receiverValue.assertEquals(receiver.hash());
-
-        // Verify sender has sufficient balance and no borrowed amounts
-        sender.baseTokenBalance.amount.assertGreaterThanOrEqual(
-          action.amount,
-          "insufficient sender balance"
-        );
-        sender.baseTokenBalance.borrowedAmount
-          .equals(UInt64.zero)
-          .assertTrue("cannot transfer borrowed amount");
-        sender.quoteTokenBalance.borrowedAmount
-          .equals(UInt64.zero)
-          .assertTrue("cannot transfer borrowed amount");
-
-        // Verify signature
-        const signatureData = getMinaSignatureData({
-          publicKey: action.senderPublicKey,
-          poolPublicKey: input.poolPublicKey,
-          operation: Operation.TRANSFER_QUOTE_TOKEN,
-          nonce: action.senderNonce,
-          amount: action.amount,
-          receiverPublicKey: action.receiverPublicKey,
-        });
-        action.senderSignature
-          .verify(action.senderPublicKey, signatureData)
-          .assertTrue();
-
-        // Update sender balance
-        sender.quoteTokenBalance.amount = sender.quoteTokenBalance.amount.sub(
-          action.amount
-        );
-        sender.nonce = sender.nonce.add(1);
-
-        // Update receiver balance
         receiver.quoteTokenBalance.amount =
-          receiver.quoteTokenBalance.amount.add(action.amount);
-        receiver.nonce = receiver.nonce.add(1);
+          receiver.quoteTokenBalance.amount.add(action.quoteTokenAmount);
 
         map.set(senderKey, sender.hash());
         map.set(receiverKey, receiver.hash());

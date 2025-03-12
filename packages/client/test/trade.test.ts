@@ -29,8 +29,8 @@ const traders: {
   name: string;
   user: User;
   secretKey: string;
-  ask: number;
-  bid: number;
+  ask: bigint;
+  bid: bigint;
 }[] = [];
 const accountsBefore: {
   name: string;
@@ -41,7 +41,7 @@ const accountsAfter: {
   account: UserTradingAccount;
 }[] = [];
 const amount = 1_000_000_000n;
-const tradePrice = 2100;
+const tradePrice = 2_100_000_000n;
 
 describe("Trade", async () => {
   it("should read configuration", async () => {
@@ -91,15 +91,15 @@ describe("Trade", async () => {
         name: "Alice",
         user: alice,
         secretKey: aliceSecretKey,
-        ask: 2100,
-        bid: 2000,
+        ask: 2_100_000_000n,
+        bid: 2_000_000_000n,
       },
       {
         name: "Bob",
         user: bob,
         secretKey: bobSecretKey,
-        ask: 2200,
-        bid: 2100,
+        ask: 2_200_000_000n,
+        bid: 2_100_000_000n,
       }
     );
 
@@ -130,8 +130,8 @@ describe("Trade", async () => {
           poolPublicKey: pool.minaPublicKey,
           operation: Operation.BID,
           nonce,
-          amount,
-          price: BigInt(trader.bid) * amount,
+          baseTokenAmount: amount,
+          price: trader.bid,
         });
 
         const { minaSignature, suiSignature } = await wrapMinaSignature({
@@ -140,8 +140,8 @@ describe("Trade", async () => {
           poolPublicKey: pool.minaPublicKey,
           operation: Operation.BID,
           nonce,
-          amount,
-          price: BigInt(trader.bid) * amount,
+          baseTokenAmount: amount,
+          price: trader.bid,
         });
 
         nonce++;
@@ -164,7 +164,7 @@ describe("Trade", async () => {
           tx.object(poolID),
           tx.pure.u256(publicKeyToU256(trader.user.minaPublicKey)),
           tx.pure.u64(amount),
-          tx.pure.u64(BigInt(trader.bid) * amount),
+          tx.pure.u64(trader.bid),
           tx.pure.u256(minaSignature.r),
           tx.pure.u256(minaSignature.s),
           tx.pure.vector("u8", suiSignature),
@@ -210,8 +210,8 @@ describe("Trade", async () => {
           poolPublicKey: pool.minaPublicKey,
           operation: Operation.ASK,
           nonce,
-          amount,
-          price: BigInt(trader.ask) * amount,
+          baseTokenAmount: amount,
+          price: trader.ask,
         });
 
         const { minaSignature, suiSignature } = await wrapMinaSignature({
@@ -220,8 +220,8 @@ describe("Trade", async () => {
           poolPublicKey: pool.minaPublicKey,
           operation: Operation.ASK,
           nonce,
-          amount,
-          price: BigInt(trader.ask) * amount,
+          baseTokenAmount: amount,
+          price: trader.ask,
         });
 
         nonce++;
@@ -231,7 +231,7 @@ describe("Trade", async () => {
           tx.object(poolID),
           tx.pure.u256(publicKeyToU256(trader.user.minaPublicKey)),
           tx.pure.u64(amount),
-          tx.pure.u64(BigInt(trader.ask) * amount),
+          tx.pure.u64(trader.ask),
           tx.pure.u256(minaSignature.r),
           tx.pure.u256(minaSignature.s),
           tx.pure.vector("u8", suiSignature),
@@ -312,7 +312,7 @@ describe("Trade", async () => {
       tx.pure.u256(publicKeyToU256(bob.minaPublicKey)),
       tx.pure.u256(publicKeyToU256(alice.minaPublicKey)),
       tx.pure.u64(amount),
-      tx.pure.u64(BigInt(tradePrice) * amount),
+      tx.pure.u64((tradePrice * amount) / 1_000_000_000n),
     ];
 
     tx.moveCall({

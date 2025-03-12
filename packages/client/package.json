@@ -5,7 +5,7 @@
   "type": "module",
   "license": "Apache-2.0",
   "scripts": {
-    "test": "NODE_NO_WARNINGS=1 node --loader=ts-node/esm --enable-source-maps -r dotenv/config --require dotenv/config --env-file=.env --env-file=.env.contracts --test",
+    "test": "NODE_NO_WARNINGS=1 node --loader=ts-node/esm --enable-source-maps -r dotenv/config --require dotenv/config --env-file=.env --env-file=.env.public --test",
     "template": "npm run test test/template.test.ts",
     "deploy": "npm run test test/deploy.test.ts",
     "topup": "npm run test test/topup.test.ts",

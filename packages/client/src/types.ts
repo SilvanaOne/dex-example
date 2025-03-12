@@ -7,8 +7,11 @@ export enum Operation {
   BID = 2,
   ASK = 3,
   TRADE = 4,
-  TRANSFER_BASE_TOKEN = 5,
-  TRANSFER_QUOTE_TOKEN = 6,
+  TRANSFER = 5,
+  // WITHDRAW = 6,
+  // DEPOSIT = 7,
+  // STAKE = 8,
+  // UNSTAKE = 9,
 }
 
 export interface MinaSignature {
@@ -34,6 +37,7 @@ export interface Pool {
   minaPrivateKey?: string;
   baseTokenId: string;
   quoteTokenId: string;
+  lastPrice: bigint;
   accounts: Record<string, UserTradingAccount>;
 }
 
@@ -97,6 +101,7 @@ export function rawBlockToBlock(raw: RawBlock): Block {
 
 export interface MinaBalance {
   amount: bigint;
+  stakedAmount: bigint;
   borrowedAmount: bigint;
 }
 
@@ -127,6 +132,7 @@ export interface User {
 export interface OperationData {
   operation: Operation;
   sequence: number;
+  blockNumber: number;
   pool: string;
   poolPublicKey: string;
   actionState: number[];
@@ -147,7 +153,7 @@ export interface ActionCreateAccount {
 export interface ActionBid {
   userPublicKey: string;
   poolPublicKey: string;
-  amount: bigint;
+  baseTokenAmount: bigint;
   price: bigint;
   isSome: boolean;
   nonce: number;
@@ -157,7 +163,7 @@ export interface ActionBid {
 export interface ActionAsk {
   userPublicKey: string;
   poolPublicKey: string;
-  amount: bigint;
+  baseTokenAmount: bigint;
   price: bigint;
   isSome: boolean;
   nonce: number;
@@ -168,26 +174,18 @@ export interface ActionTrade {
   buyerPublicKey: string;
   sellerPublicKey: string;
   poolPublicKey: string;
-  amount: bigint;
-  quoteAmount: bigint;
+  baseTokenAmount: bigint;
+  quoteTokenAmount: bigint;
   price: bigint;
   buyerNonce: number;
   sellerNonce: number;
 }
 
-export interface ActionTransferBaseToken {
+export interface ActionTransfer {
   senderPublicKey: string;
   receiverPublicKey: string;
-  amount: bigint;
-  senderNonce: number;
-  receiverNonce: number;
-  senderSignature: MinaSignature;
-}
-
-export interface ActionTransferQuoteToken {
-  senderPublicKey: string;
-  receiverPublicKey: string;
-  amount: bigint;
+  baseTokenAmount: bigint;
+  quoteTokenAmount: bigint;
   senderNonce: number;
   receiverNonce: number;
   senderSignature: MinaSignature;
@@ -206,8 +204,7 @@ export interface OperationEvent {
     | ActionBid
     | ActionAsk
     | ActionTrade
-    | ActionTransferBaseToken
-    | ActionTransferQuoteToken;
+    | ActionTransfer;
   operation: OperationData;
 }
 
@@ -227,6 +224,7 @@ export interface RawOperationEvent {
     pool: string;
     poolPublicKey: string;
     sequence: string;
+    block_number: string;
   };
 }
 
@@ -320,6 +318,7 @@ export function convertRawOperationEvent(
       pool: raw.operation.pool,
       poolPublicKey: raw.operation.poolPublicKey,
       sequence: Number(raw.operation.sequence),
+      blockNumber: Number(raw.operation.block_number),
     },
   };
 }

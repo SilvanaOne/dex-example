@@ -90,87 +90,45 @@ describe("Topup DEX users", async () => {
       const baseTokenAmount = 10_000_000_000n;
       const quoteTokenAmount = 20_000_000_000_000n;
 
-      const faucetBaseTokenSignature = await signDexFields({
+      const faucetSignature = await signDexFields({
         minaPrivateKey: faucet.minaPrivateKey,
         poolPublicKey: pool.minaPublicKey,
-        operation: Operation.TRANSFER_BASE_TOKEN,
+        operation: Operation.TRANSFER,
         nonce,
-        amount: baseTokenAmount,
+        baseTokenAmount,
+        quoteTokenAmount,
         receiverPublicKey: user.minaPublicKey,
       });
 
-      const {
-        minaSignature: minaBaseTokenSignature,
-        suiSignature: suiBaseTokenSignature,
-      } = await wrapMinaSignature({
-        minaSignature: faucetBaseTokenSignature.minaSignature,
+      const { minaSignature, suiSignature } = await wrapMinaSignature({
+        minaSignature: faucetSignature.minaSignature,
         minaPublicKey: faucet.minaPublicKey,
         poolPublicKey: pool.minaPublicKey,
-        operation: Operation.TRANSFER_BASE_TOKEN,
+        operation: Operation.TRANSFER,
         nonce,
-        amount: baseTokenAmount,
+        baseTokenAmount,
+        quoteTokenAmount,
         receiverPublicKey: user.minaPublicKey,
       });
       nonce++;
 
-      const faucetQuoteTokenSignature = await signDexFields({
-        minaPrivateKey: faucet.minaPrivateKey,
-        poolPublicKey: pool.minaPublicKey,
-        operation: Operation.TRANSFER_QUOTE_TOKEN,
-        nonce,
-        amount: quoteTokenAmount,
-        receiverPublicKey: user.minaPublicKey,
-      });
-
-      const {
-        minaSignature: minaQuoteTokenSignature,
-        suiSignature: suiQuoteTokenSignature,
-      } = await wrapMinaSignature({
-        minaSignature: faucetQuoteTokenSignature.minaSignature,
-        minaPublicKey: faucet.minaPublicKey,
-        poolPublicKey: pool.minaPublicKey,
-        operation: Operation.TRANSFER_QUOTE_TOKEN,
-        nonce,
-        amount: quoteTokenAmount,
-        receiverPublicKey: user.minaPublicKey,
-      });
-
-      nonce++;
-
-      const userTopupBaseTokenArguments = [
+      const userTopupArguments = [
         tx.object(dexID),
         tx.object(poolID),
         tx.pure.u256(publicKeyToU256(faucet.minaPublicKey)),
         tx.pure.u256(publicKeyToU256(user.minaPublicKey)),
         tx.pure.u64(baseTokenAmount),
-        tx.pure.u256(minaBaseTokenSignature.r),
-        tx.pure.u256(minaBaseTokenSignature.s),
-        tx.pure.vector("u8", suiBaseTokenSignature),
-      ];
-
-      const userTopupQuoteTokenArguments = [
-        tx.object(dexID),
-        tx.object(poolID),
-        tx.pure.u256(publicKeyToU256(faucet.minaPublicKey)),
-        tx.pure.u256(publicKeyToU256(user.minaPublicKey)),
         tx.pure.u64(quoteTokenAmount),
-        tx.pure.u256(minaQuoteTokenSignature.r),
-        tx.pure.u256(minaQuoteTokenSignature.s),
-        tx.pure.vector("u8", suiQuoteTokenSignature),
+        tx.pure.u256(minaSignature.r),
+        tx.pure.u256(minaSignature.s),
+        tx.pure.vector("u8", suiSignature),
       ];
 
       tx.moveCall({
         package: packageID,
         module: "trade",
-        function: "transfer_base_token",
-        arguments: userTopupBaseTokenArguments,
-      });
-
-      tx.moveCall({
-        package: packageID,
-        module: "trade",
-        function: "transfer_quote_token",
-        arguments: userTopupQuoteTokenArguments,
+        function: "transfer",
+        arguments: userTopupArguments,
       });
     }
     tx.setSender(address);

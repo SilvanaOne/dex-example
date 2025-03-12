@@ -6,7 +6,8 @@ export async function signDexFields(params: {
   poolPublicKey: string;
   operation: Operation;
   nonce: number;
-  amount?: bigint; // u64
+  baseTokenAmount?: bigint; // u64
+  quoteTokenAmount?: bigint; // u64
   price?: bigint; // u64
   receiverPublicKey?: string;
 }): Promise<{
@@ -18,7 +19,8 @@ export async function signDexFields(params: {
     poolPublicKey,
     operation,
     nonce,
-    amount,
+    baseTokenAmount,
+    quoteTokenAmount,
     price,
     receiverPublicKey,
   } = params;
@@ -29,7 +31,8 @@ export async function signDexFields(params: {
     Field(operation),
     Field(nonce),
   ];
-  if (amount !== undefined) minaData.push(Field(amount));
+  if (baseTokenAmount !== undefined) minaData.push(Field(baseTokenAmount));
+  if (quoteTokenAmount !== undefined) minaData.push(Field(quoteTokenAmount));
   if (price !== undefined) minaData.push(Field(price));
   if (receiverPublicKey !== undefined)
     minaData.push(

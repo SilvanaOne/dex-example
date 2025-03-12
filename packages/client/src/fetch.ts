@@ -49,12 +49,14 @@ export async function fetchDexAccount(
       const result: UserTradingAccount = {
         baseTokenBalance: {
           amount: BigInt(data?.baseTokenBalance?.fields?.amount),
+          stakedAmount: BigInt(data?.baseTokenBalance?.fields?.stakedAmount),
           borrowedAmount: BigInt(
             data?.baseTokenBalance?.fields?.borrowedAmount
           ),
         },
         quoteTokenBalance: {
           amount: BigInt(data?.quoteTokenBalance?.fields?.amount),
+          stakedAmount: BigInt(data?.quoteTokenBalance?.fields?.stakedAmount),
           borrowedAmount: BigInt(
             data?.quoteTokenBalance?.fields?.borrowedAmount
           ),

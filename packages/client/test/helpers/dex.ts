@@ -104,6 +104,7 @@ export function createPool(params: {
     minaPublicKey: publicKey.toBase58(),
     minaPrivateKey: privateKey.toBase58(),
     accounts: {},
+    lastPrice: 2000n,
   };
 }
 
@@ -141,10 +142,12 @@ export function createUserTradingAccount(params: {
   return {
     baseTokenBalance: {
       amount: params.baseTokenBalance ?? 0n,
+      stakedAmount: 0n,
       borrowedAmount: 0n,
     },
     quoteTokenBalance: {
       amount: params.quoteTokenBalance ?? 0n,
+      stakedAmount: 0n,
       borrowedAmount: 0n,
     },
     bid: {
