@@ -255,6 +255,12 @@ public struct BlockEvent has copy, drop {
     proof_data_availability: Option<String>,
 }
 
+public struct DataAvailabilityEvent has copy, drop {
+    block_number: u64,
+    state_data_availability: Option<String>,
+    proof_data_availability: Option<String>,
+}
+
 public struct DEX has key, store {
     id: UID,
     name: String,
@@ -1033,6 +1039,11 @@ public fun update_block_state_data_availability(
         state_data_availability: block.state_data_availability,
         proof_data_availability: block.proof_data_availability,
     });
+    event::emit(DataAvailabilityEvent {
+        block_number: block.block_number,
+        state_data_availability: block.state_data_availability,
+        proof_data_availability: block.proof_data_availability,
+    });
 }
 
 public fun update_block_proof_data_availability(
@@ -1052,6 +1063,11 @@ public fun update_block_proof_data_availability(
         sequences: block.sequences,
         start_action_state: block.start_action_state,
         end_action_state: block.end_action_state,
+        state_data_availability: block.state_data_availability,
+        proof_data_availability: block.proof_data_availability,
+    });
+    event::emit(DataAvailabilityEvent {
+        block_number: block.block_number,
         state_data_availability: block.state_data_availability,
         proof_data_availability: block.proof_data_availability,
     });

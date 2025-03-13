@@ -361,7 +361,14 @@ describe("Deploy DEX contracts", async () => {
     assert.ok(!waitResult.errors, "init transaction failed");
   });
   it("should save object IDs to .env.contracts", async () => {
-    const envContent = `PACKAGE_ID=${packageID}
+    const envContent = `# Chains
+SUI_CHAIN=${process.env.SUI_CHAIN}
+MINA_CHAIN=${process.env.MINA_CHAIN}
+
+# Package ID
+PACKAGE_ID=${packageID}
+
+# Object IDs
 DEX_ID=${dexID}
 POOL_ID=${poolID}`;
     await writeFile(".env.public", envContent);
