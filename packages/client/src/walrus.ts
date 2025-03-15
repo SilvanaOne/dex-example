@@ -48,7 +48,7 @@ export async function readFromWalrus({
   blobId,
 }: {
   blobId: string;
-}): Promise<object | undefined> {
+}): Promise<string | undefined> {
   if (!blobId) {
     throw new Error("blobId is not provided");
   }
@@ -63,7 +63,7 @@ export async function readFromWalrus({
     });
     return undefined;
   } else {
-    const blob = await response.json();
+    const blob = await response.text();
     console.log("blob", blob);
     return blob;
   }

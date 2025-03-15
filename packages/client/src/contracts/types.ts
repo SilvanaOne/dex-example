@@ -13,7 +13,6 @@ import {
   Signature,
 } from "o1js";
 import {
-  Operation,
   UserTradingAccount,
   ActionCreateAccount,
   ActionBid,
@@ -31,12 +30,14 @@ export class DEXMap extends IndexedMerkleMap(DEX_HEIGHT) {}
 export class DEXState extends Struct({
   poolPublicKey: PublicKey,
   root: Field,
-  actionState: Field,
+  length: Field,
+  actionState: Field, // TODO: check in production
   sequence: UInt64,
 }) {
   static assertEquals(a: DEXState, b: DEXState) {
     a.poolPublicKey.assertEquals(b.poolPublicKey);
     a.root.assertEquals(b.root);
+    a.length.assertEquals(b.length);
     a.actionState.assertEquals(b.actionState);
     a.sequence.assertEquals(b.sequence);
   }
@@ -112,7 +113,7 @@ export class RollupActionCreateAccount extends Struct({
   baseBalance: UInt64, // TODO: remove in production
   quoteBalance: UInt64, // TODO: remove in production
 }) {
-  fromAction(action: ActionCreateAccount): RollupActionCreateAccount {
+  static fromAction(action: ActionCreateAccount): RollupActionCreateAccount {
     return new RollupActionCreateAccount({
       publicKey: PublicKey.fromBase58(action.publicKey),
       baseBalance: UInt64.from(action.baseBalance),
@@ -140,7 +141,7 @@ export class RollupActionBid extends Struct({
   nonce: UInt64,
   userSignature: Signature,
 }) {
-  fromAction(action: ActionBid): RollupActionBid {
+  static fromAction(action: ActionBid): RollupActionBid {
     return new RollupActionBid({
       userPublicKey: PublicKey.fromBase58(action.userPublicKey),
       baseTokenAmount: UInt64.from(action.baseTokenAmount),
@@ -170,7 +171,7 @@ export class RollupActionAsk extends Struct({
   nonce: UInt64,
   userSignature: Signature,
 }) {
-  fromAction(action: ActionAsk): RollupActionAsk {
+  static fromAction(action: ActionAsk): RollupActionAsk {
     return new RollupActionAsk({
       userPublicKey: PublicKey.fromBase58(action.userPublicKey),
       baseTokenAmount: UInt64.from(action.baseTokenAmount),
@@ -201,7 +202,7 @@ export class RollupActionTrade extends Struct({
   baseTokenAmount: UInt64,
   quoteTokenAmount: UInt64,
 }) {
-  fromAction(action: ActionTrade): RollupActionTrade {
+  static fromAction(action: ActionTrade): RollupActionTrade {
     return new RollupActionTrade({
       buyerPublicKey: PublicKey.fromBase58(action.buyerPublicKey),
       sellerPublicKey: PublicKey.fromBase58(action.sellerPublicKey),
@@ -231,7 +232,7 @@ export class RollupActionTransfer extends Struct({
   senderNonce: UInt64,
   senderSignature: Signature,
 }) {
-  fromAction(action: ActionTransfer): RollupActionTransfer {
+  static fromAction(action: ActionTransfer): RollupActionTransfer {
     return new RollupActionTransfer({
       senderPublicKey: PublicKey.fromBase58(action.senderPublicKey),
       receiverPublicKey: PublicKey.fromBase58(action.receiverPublicKey),

@@ -5,7 +5,8 @@
   "type": "module",
   "license": "Apache-2.0",
   "scripts": {
-    "test": "NODE_NO_WARNINGS=1 node --loader=ts-node/esm --enable-source-maps -r dotenv/config --require dotenv/config --env-file=.env --env-file=.env.public --test",
+    "test": "NODE_NO_WARNINGS=1 node --loader=ts-node/esm --enable-source-maps -r dotenv/config --require dotenv/config --env-file=.env --env-file=.env.public --env-file=.env.circuit --test",
+    "localnet": "RUST_LOG=off,sui_node=info sui start --with-faucet --force-regenesis",
     "template": "npm run test test/template.test.ts",
     "deploy": "npm run test test/deploy.test.ts",
     "topup": "npm run test test/topup.test.ts",
@@ -15,6 +16,9 @@
     "walrus": "npm run test test/walrus.test.ts",
     "events": "npm run test test/events.test.ts",
     "rollup": "npm run test test/rollup.test.ts",
+    "circuits": "npm run test test/circuits.test.ts",
+    "circuit": "npm run test test/circuit.test.ts",
+    "watch": "npm run test test/watch.test.ts",
     "start": "npm run deploy && npm run topup && npm run trade"
   },
   "node": {

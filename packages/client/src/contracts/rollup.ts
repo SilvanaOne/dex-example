@@ -1,4 +1,12 @@
-import { ZkProgram, PublicKey, SelfProof, Poseidon, UInt64 } from "o1js";
+import {
+  ZkProgram,
+  PublicKey,
+  Poseidon,
+  UInt64,
+  Field,
+  Bool,
+  SelfProof,
+} from "o1js";
 import {
   DEXState,
   DEXMap,
@@ -15,19 +23,6 @@ import { mulDiv } from "./div.js";
 import { Operation } from "../types.js";
 import { getMinaSignatureData } from "./signature.js";
 
-/*
-export enum Operation {
-  CREATE_ACCOUNT = 1,
-  BID = 2,
-  ASK = 3,
-  TRADE = 4,
-  TRANSFER = 5,
-}
-*/
-
-/**
- * Defines the DEX ZkProgram with methods for processing DEX transactions.
- */
 export const DEXProgram = ZkProgram({
   name: "DEXProgram",
   publicInput: DEXState,
@@ -45,6 +40,7 @@ export const DEXProgram = ZkProgram({
         auxiliaryOutput: DEXMap;
       }> {
         map.root.assertEquals(input.root);
+        map.length.assertEquals(input.length);
         const key = Poseidon.hashPacked(PublicKey, action.publicKey);
         const account = new RollupUserTradingAccount({
           baseTokenBalance: new RollupMinaBalance({
@@ -74,6 +70,7 @@ export const DEXProgram = ZkProgram({
           publicOutput: new DEXState({
             poolPublicKey: input.poolPublicKey,
             root: map.root,
+            length: map.length,
             actionState: input.actionState,
             sequence: input.sequence.add(1),
           }),
@@ -95,6 +92,7 @@ export const DEXProgram = ZkProgram({
         auxiliaryOutput: DEXMap;
       }> {
         map.root.assertEquals(input.root);
+        map.length.assertEquals(input.length);
         const key = Poseidon.hashPacked(PublicKey, action.userPublicKey);
         const value = map.get(key);
         value.assertEquals(account.hash());
@@ -125,6 +123,7 @@ export const DEXProgram = ZkProgram({
           publicOutput: new DEXState({
             poolPublicKey: input.poolPublicKey,
             root: map.root,
+            length: map.length,
             actionState: input.actionState,
             sequence: input.sequence.add(1),
           }),
@@ -146,6 +145,7 @@ export const DEXProgram = ZkProgram({
         auxiliaryOutput: DEXMap;
       }> {
         map.root.assertEquals(input.root);
+        map.length.assertEquals(input.length);
         const key = Poseidon.hashPacked(PublicKey, action.userPublicKey);
         const value = map.get(key);
         value.assertEquals(account.hash());
@@ -173,6 +173,7 @@ export const DEXProgram = ZkProgram({
           publicOutput: new DEXState({
             poolPublicKey: input.poolPublicKey,
             root: map.root,
+            length: map.length,
             actionState: input.actionState,
             sequence: input.sequence.add(1),
           }),
@@ -207,6 +208,7 @@ export const DEXProgram = ZkProgram({
           .assertFalse("price is zero");
 
         map.root.assertEquals(input.root);
+        map.length.assertEquals(input.length);
         const buyerKey = Poseidon.hashPacked(PublicKey, action.buyerPublicKey);
         const sellerKey = Poseidon.hashPacked(
           PublicKey,
@@ -228,13 +230,17 @@ export const DEXProgram = ZkProgram({
         buyer.bid.amount.assertGreaterThanOrEqual(action.baseTokenAmount);
         buyer.bid.price.value
           .mul(action.baseTokenAmount.value)
-          .assertLessThanOrEqual(action.quoteTokenAmount.value);
+          .assertLessThanOrEqual(
+            action.quoteTokenAmount.value.mul(1_000_000_000n)
+          );
 
         // Check seller ask validity
         seller.ask.amount.assertGreaterThanOrEqual(action.baseTokenAmount);
         seller.ask.price.value
           .mul(action.baseTokenAmount.value)
-          .assertLessThanOrEqual(action.quoteTokenAmount.value);
+          .assertLessThanOrEqual(
+            action.quoteTokenAmount.value.mul(1_000_000_000n)
+          );
 
         // Update buyer balances
         buyer.bid.amount = buyer.bid.amount.sub(action.baseTokenAmount);
@@ -263,6 +269,7 @@ export const DEXProgram = ZkProgram({
           publicOutput: new DEXState({
             poolPublicKey: input.poolPublicKey,
             root: map.root,
+            length: map.length,
             actionState: input.actionState,
             sequence: input.sequence.add(1),
           }),
@@ -297,6 +304,7 @@ export const DEXProgram = ZkProgram({
           .assertFalse("amount is zero");
 
         map.root.assertEquals(input.root);
+        map.length.assertEquals(input.length);
         const senderKey = Poseidon.hashPacked(
           PublicKey,
           action.senderPublicKey
@@ -306,9 +314,11 @@ export const DEXProgram = ZkProgram({
           action.receiverPublicKey
         );
         const senderValue = map.get(senderKey);
-        senderValue.assertEquals(sender.hash());
+        const senderHash = sender.hash();
+        senderValue.assertEquals(senderHash);
         const receiverValue = map.get(receiverKey);
-        receiverValue.assertEquals(receiver.hash());
+        const receiverHash = receiver.hash();
+        receiverValue.assertEquals(receiverHash);
 
         // Verify sender has sufficient balance and no borrowed amounts
         sender.baseTokenBalance.amount.assertGreaterThanOrEqual(
@@ -362,6 +372,7 @@ export const DEXProgram = ZkProgram({
           publicOutput: new DEXState({
             poolPublicKey: input.poolPublicKey,
             root: map.root,
+            length: map.length,
             actionState: input.actionState,
             sequence: input.sequence.add(1),
           }),
@@ -388,3 +399,5 @@ export const DEXProgram = ZkProgram({
     },
   },
 });
+
+export class DEXProof extends ZkProgram.Proof(DEXProgram) {}

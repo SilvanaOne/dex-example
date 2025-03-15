@@ -14,7 +14,7 @@ describe("Events", async () => {
       packageID,
       module: "trade",
     });
-    const filteredEvents: OperationEvent[] | undefined = events
+    const filteredEvents: OperationEvent[] | undefined = events?.data
       ?.filter((event) => event?.type?.includes("::trade::Operation"))
       .map((event) => {
         return {

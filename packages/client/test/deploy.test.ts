@@ -33,6 +33,7 @@ userSecretKeys.map((secretKey) => {
 let packageID: string | undefined = undefined;
 let dexID: string | undefined = undefined;
 let poolID: string | undefined = undefined;
+let circuitID: string | undefined = undefined;
 let dexObjects: DexObjects | undefined = undefined;
 
 describe("Deploy DEX contracts", async () => {
@@ -76,7 +77,7 @@ describe("Deploy DEX contracts", async () => {
     assert.ok(dexID, "DEX ID is not set");
   });
 
-  it("should create tokens, pool and setup public keys", async () => {
+  it("should create circuit", async () => {
     if (!packageID) {
       throw new Error("PACKAGE_ID is not set");
     }
@@ -84,6 +85,86 @@ describe("Deploy DEX contracts", async () => {
     if (!dexID) {
       throw new Error("DEX_ID is not set");
     }
+    const { address, keypair } = await getKey({
+      secretKey: adminSecretKey,
+      name: "admin",
+    });
+
+    const tx = new Transaction();
+
+    const CIRCUIT_BLOB_ID = process.env.CIRCUIT_BLOB_ID!;
+    if (!CIRCUIT_BLOB_ID) {
+      throw new Error("CIRCUIT_BLOB_ID is not set");
+    }
+
+    /*
+        public fun create_circuit(
+            name: String,
+            description: String,
+            package_da_hash: String,
+            clock: &Clock,
+            ctx: &mut TxContext,
+    */
+
+    const circuitArguments = [
+      tx.pure.string("DEX Circuit"),
+      tx.pure.string("DEX Rollup Circuits for Mina protocol"),
+      tx.pure.string(CIRCUIT_BLOB_ID),
+      tx.object(SUI_CLOCK_OBJECT_ID),
+    ];
+
+    tx.moveCall({
+      package: packageID,
+      module: "prover",
+      function: "create_circuit",
+      arguments: circuitArguments,
+    });
+
+    tx.setSender(address);
+    tx.setGasBudget(100_000_000);
+    const signedTx = await tx.sign({
+      signer: keypair,
+      client: suiClient,
+    });
+
+    const { tx: initTx, digest, events } = await executeTx(signedTx);
+    initTx.objectChanges?.map((change) => {
+      if (
+        change.type === "created" &&
+        change.objectType.includes("prover::Circuit") &&
+        !change.objectType.includes("display")
+      ) {
+        circuitID = change.objectId;
+      }
+    });
+    console.log("Created circuit:", {
+      initTx,
+      objectChanges: initTx.objectChanges,
+      digest,
+      events,
+      circuitID,
+    });
+    const waitResult = await waitTx(digest);
+    if (waitResult.errors) {
+      console.log(`Errors for tx ${digest}:`, waitResult.errors);
+    }
+    assert.ok(!waitResult.errors, "create circuit transaction failed");
+    assert.ok(circuitID, "circuit ID is not set");
+  });
+
+  it("should create tokens, pool and set public key", async () => {
+    if (!packageID) {
+      throw new Error("PACKAGE_ID is not set");
+    }
+
+    if (!dexID) {
+      throw new Error("DEX_ID is not set");
+    }
+
+    if (!circuitID) {
+      throw new Error("CIRCUIT_ID is not set");
+    }
+
     const { address, keypair } = await getKey({
       secretKey: adminSecretKey,
       name: "admin",
@@ -98,6 +179,19 @@ describe("Deploy DEX contracts", async () => {
     dexObjects = createInitialState();
     const { baseToken, quoteToken, pool } = dexObjects;
     const tx = new Transaction();
+
+    const publicKeyArguments = [
+      tx.object(dexID),
+      tx.pure.vector("u8", validator.getPublicKey().toRawBytes()),
+      tx.pure.address(circuitID),
+    ];
+
+    tx.moveCall({
+      package: packageID,
+      module: "trade",
+      function: "set_public_key_and_circuit_package",
+      arguments: publicKeyArguments,
+    });
 
     /*
             dex: &mut DEX,
@@ -175,25 +269,6 @@ describe("Deploy DEX contracts", async () => {
       function: "create_pool",
       arguments: poolArguments,
     });
-    /*
-        public fun set_public_key(
-            dex: &mut DEX,
-            public_key: vector<u8>,
-            clock: &Clock,
-            ctx: &mut TxContext,
-    */
-
-    const publicKeyArguments = [
-      tx.object(dexID),
-      tx.pure.vector("u8", validator.getPublicKey().toRawBytes()),
-    ];
-
-    tx.moveCall({
-      package: packageID,
-      module: "trade",
-      function: "set_public_key",
-      arguments: publicKeyArguments,
-    });
 
     tx.setSender(address);
     tx.setGasBudget(100_000_000);
@@ -211,6 +286,13 @@ describe("Deploy DEX contracts", async () => {
       ) {
         poolID = change.objectId;
       }
+      if (
+        change.type === "created" &&
+        change.objectType.includes("prover::Circuit") &&
+        !change.objectType.includes("display")
+      ) {
+        circuitID = change.objectId;
+      }
     });
     console.log("Created initial state:", {
       initTx,
@@ -218,6 +300,7 @@ describe("Deploy DEX contracts", async () => {
       digest,
       events,
       poolID,
+      circuitID,
     });
     const waitResult = await waitTx(digest);
     if (waitResult.errors) {
@@ -361,6 +444,10 @@ describe("Deploy DEX contracts", async () => {
     assert.ok(!waitResult.errors, "init transaction failed");
   });
   it("should save object IDs to .env.contracts", async () => {
+    const CIRCUIT_BLOB_ID = process.env.CIRCUIT_BLOB_ID!;
+    if (!CIRCUIT_BLOB_ID) {
+      throw new Error("CIRCUIT_BLOB_ID is not set");
+    }
     const envContent = `# Chains
 SUI_CHAIN=${process.env.SUI_CHAIN}
 MINA_CHAIN=${process.env.MINA_CHAIN}
@@ -370,7 +457,10 @@ PACKAGE_ID=${packageID}
 
 # Object IDs
 DEX_ID=${dexID}
-POOL_ID=${poolID}`;
+POOL_ID=${poolID}
+CIRCUIT_ID=${circuitID}
+CIRCUIT_BLOB_ID=${CIRCUIT_BLOB_ID}
+`;
     await writeFile(".env.public", envContent);
   });
 

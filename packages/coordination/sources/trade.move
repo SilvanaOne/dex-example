@@ -1,5 +1,6 @@
 module dex::trade;
 
+use dex::prover::create_block_proof_calculation;
 use std::string::String;
 use sui::clock::{timestamp_ms, Clock};
 use sui::display;
@@ -237,6 +238,7 @@ public struct Block has key, store {
     mina_tx_hash: Option<String>,
     mina_tx_included_in_block: Option<u64>,
     previous_block_address: Option<address>,
+    proof_calculation: address,
 }
 
 public struct BlockEvent has copy, drop {
@@ -253,6 +255,7 @@ public struct BlockEvent has copy, drop {
     end_action_state: vector<u8>,
     state_data_availability: Option<String>,
     proof_data_availability: Option<String>,
+    proof_calculation: address,
 }
 
 public struct DataAvailabilityEvent has copy, drop {
@@ -266,6 +269,7 @@ public struct DEX has key, store {
     name: String,
     admin: address,
     public_key: vector<u8>,
+    circuit_package: Option<address>,
     version: u32,
     actionsState: vector<u8>,
     sequence: u64,
@@ -329,6 +333,7 @@ fun init(otw: TRADE, ctx: &mut TxContext) {
         name: b"Silvana DEX".to_string(),
         admin: ctx.sender(),
         public_key: vector::empty<u8>(),
+        circuit_package: option::none(),
         version: DEX_VERSION,
         actionsState: hash,
         sequence: 0,
@@ -976,6 +981,12 @@ public fun create_block(dex: &mut DEX, pool: &Pool, clock: &Clock, ctx: &mut TxC
         block_number: dex.block_number,
         state: pool.accounts,
     };
+    let proof_calculation = create_block_proof_calculation(
+        dex.block_number,
+        *option::borrow(&dex.circuit_package),
+        clock,
+        ctx,
+    );
     let block = Block {
         id: object::new(ctx),
         name,
@@ -992,12 +1003,12 @@ public fun create_block(dex: &mut DEX, pool: &Pool, clock: &Clock, ctx: &mut TxC
         mina_tx_hash: option::none(),
         mina_tx_included_in_block: option::none(),
         previous_block_address: dex.last_block_address,
+        proof_calculation,
     };
 
     dex.previous_block_sequence = dex.sequence;
     dex.previous_block_actions_state = dex.actionsState;
     dex.previous_block_timestamp = timestamp;
-
     dex.last_block_address = option::some(block.id.to_address());
     event::emit(BlockEvent {
         address: block.id.to_address(),
@@ -1013,6 +1024,7 @@ public fun create_block(dex: &mut DEX, pool: &Pool, clock: &Clock, ctx: &mut TxC
         end_action_state: dex.actionsState,
         state_data_availability: block.state_data_availability,
         proof_data_availability: option::none(),
+        proof_calculation,
     });
     transfer::transfer(block_state, ctx.sender());
     transfer::transfer(block, ctx.sender());
@@ -1038,6 +1050,7 @@ public fun update_block_state_data_availability(
         end_action_state: block.end_action_state,
         state_data_availability: block.state_data_availability,
         proof_data_availability: block.proof_data_availability,
+        proof_calculation: block.proof_calculation,
     });
     event::emit(DataAvailabilityEvent {
         block_number: block.block_number,
@@ -1065,6 +1078,7 @@ public fun update_block_proof_data_availability(
         end_action_state: block.end_action_state,
         state_data_availability: block.state_data_availability,
         proof_data_availability: block.proof_data_availability,
+        proof_calculation: block.proof_calculation,
     });
     event::emit(DataAvailabilityEvent {
         block_number: block.block_number,
@@ -1089,6 +1103,7 @@ public fun update_block_mina_tx_hash(block: &mut Block, mina_tx_hash: String) {
         end_action_state: block.end_action_state,
         state_data_availability: block.state_data_availability,
         proof_data_availability: block.proof_data_availability,
+        proof_calculation: block.proof_calculation,
     });
 }
 
@@ -1111,13 +1126,20 @@ public fun update_block_mina_tx_included_in_block(
         end_action_state: block.end_action_state,
         state_data_availability: block.state_data_availability,
         proof_data_availability: block.proof_data_availability,
+        proof_calculation: block.proof_calculation,
     });
 }
 
-public fun set_public_key(dex: &mut DEX, public_key: vector<u8>, ctx: &mut TxContext) {
+public fun set_public_key_and_circuit_package(
+    dex: &mut DEX,
+    public_key: vector<u8>,
+    circuit: address,
+    ctx: &mut TxContext,
+) {
     only_admin(dex, ctx);
     assert!(vector::length(&public_key) == 33, EInvalidPublicKey);
     dex.public_key = public_key;
+    dex.circuit_package = option::some(circuit);
     dex.isPaused = false;
 }
 

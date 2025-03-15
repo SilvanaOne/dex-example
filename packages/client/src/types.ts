@@ -12,6 +12,8 @@ export enum Operation {
   // DEPOSIT = 7,
   // STAKE = 8,
   // UNSTAKE = 9,
+  MERGE = 100,
+  SETTLE = 101,
 }
 
 export interface MinaSignature {
@@ -141,6 +143,7 @@ export interface OperationData {
 
 export interface ActionCreateAccount {
   address: string;
+  poolPublicKey: string;
   publicKey: string;
   publicKeyBase58: string;
   name: string;

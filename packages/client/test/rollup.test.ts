@@ -63,7 +63,6 @@ describe("Rollup", async () => {
     console.time("compiled DEXProgram");
     const cache = Cache.FileSystem("./cache");
     const { verificationKey } = await DEXProgram.compile({ cache });
-    DEXProgram.rawMethods;
     console.timeEnd("compiled DEXProgram");
   });
 });

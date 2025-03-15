@@ -6,7 +6,12 @@ import {
   RawOperationEvent,
   convertRawOperationEvent,
 } from "./types.js";
-import { SuiEvent } from "@mysten/sui/client";
+import {
+  EventId,
+  PaginatedEvents,
+  SuiEvent,
+  SuiEventFilter,
+} from "@mysten/sui/client";
 
 const poolID = process.env.POOL_ID;
 const packageID = process.env.PACKAGE_ID;
@@ -83,8 +88,9 @@ export async function fetchEvents(params: {
   packageID: string;
   module: string;
   limit?: number;
-}): Promise<SuiEvent[] | undefined> {
-  const { packageID, module, limit } = params;
+  cursor?: EventId | null | undefined;
+}): Promise<PaginatedEvents | undefined> {
+  const { packageID, module, limit, cursor } = params;
 
   console.time("queryEvents");
   try {
@@ -95,11 +101,12 @@ export async function fetchEvents(params: {
           module,
         },
       },
-      limit: limit || 200,
-      order: "descending",
+      limit: limit || 10,
+      order: "ascending",
+      cursor: cursor,
     });
     console.timeEnd("queryEvents");
-    return data?.data;
+    return data;
   } catch (error) {
     console.timeEnd("queryEvents");
     console.error("error", error);
@@ -122,7 +129,7 @@ export async function fetchDexEvents(params: {
     module: "trade",
     limit: limit ?? (sequences?.length ? sequences.length * 10 : 200),
   });
-  const filteredEvents: OperationEvent[] | undefined = events
+  const filteredEvents: OperationEvent[] | undefined = events?.data
     ?.filter((event) => event?.type?.includes("::trade::Operation"))
     .map((event) => {
       return {

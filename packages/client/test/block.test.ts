@@ -74,7 +74,7 @@ describe("DEX Block", async () => {
     });
 
     tx.setSender(address);
-    tx.setGasBudget(10_000_000);
+    tx.setGasBudget(100_000_000);
 
     const signedTx = await tx.sign({
       signer: keypair,
@@ -240,10 +240,10 @@ describe("DEX Block", async () => {
       blobId: blockBlobId,
     });
     console.log(`block:`, block);
-    await writeFile(
-      `./data/block-${blockNumber}.json`,
-      JSON.stringify(block, null, 2)
-    );
+    if (!block) {
+      throw new Error("block is not received");
+    }
+    await writeFile(`./data/block-${blockNumber}.json`, block);
   });
   it("should save block and block state blobIds to Sui", async () => {
     if (!packageID) {
@@ -285,7 +285,7 @@ describe("DEX Block", async () => {
     });
 
     tx.setSender(address);
-    tx.setGasBudget(10_000_000);
+    tx.setGasBudget(100_000_000);
 
     const signedTx = await tx.sign({
       signer: keypair,
