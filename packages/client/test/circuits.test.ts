@@ -32,10 +32,11 @@ import {
   RollupActionTransfer,
   RollupActionTrade,
   DEXMap,
-  DEXState,
+  RollupDEXState,
   RollupUserTradingAccount,
   RollupOrder,
-} from "../src/contracts/types.js";
+  RollupMinaBalance,
+} from "../src/contracts/provable-types.js";
 import { signDexFields } from "../src/sign.js";
 
 function getUser() {
@@ -280,11 +281,12 @@ const mergeJobs: number[][] = [
   [10, 11],
   [12, 13],
 ];
-let map = new DEXMap();
-let dexState = new DEXState({
+const newMap = new DEXMap();
+const maps: DEXMap[] = [newMap];
+let dexState = new RollupDEXState({
   poolPublicKey: poolPublicKey,
-  root: map.root,
-  length: map.length,
+  root: maps[0].root,
+  length: maps[0].length,
   actionState: Field.random(),
   sequence: UInt64.from(0),
 });
@@ -355,214 +357,227 @@ describe("Circuits", async () => {
           {
             const { proof, auxiliaryOutput } = await DEXProgram.createAccount(
               dexState,
-              map,
+              maps[maps.length - 1],
               item.action as RollupActionCreateAccount
             );
             dexProof = proof;
-            map.root = proof.publicOutput.root;
-            map.length = proof.publicOutput.length;
+            maps.push(auxiliaryOutput.map);
+            const account = auxiliaryOutput.account;
+            // console.log("account", account);
+            // map.root = proof.publicOutput.root;
+            // map.length = proof.publicOutput.length;
             dexState = proof.publicOutput;
           }
           break;
         case Operation.ASK:
           {
             const account = new RollupUserTradingAccount({
-              baseTokenBalance: {
-                amount: UInt64.from(faucetBaseTokenAmount),
-                stakedAmount: UInt64.from(0),
-                borrowedAmount: UInt64.from(0),
-              },
-              quoteTokenBalance: {
-                amount: UInt64.from(faucetQuoteTokenAmount),
-                stakedAmount: UInt64.from(0),
-                borrowedAmount: UInt64.from(0),
-              },
-              bid: new RollupOrder({
-                amount: UInt64.from(0),
-                price: UInt64.from(0),
+              baseTokenBalance: RollupMinaBalance.fromAccountData({
+                amount: faucetBaseTokenAmount,
+                stakedAmount: 0n,
+                borrowedAmount: 0n,
               }),
-              ask: new RollupOrder({
-                amount: UInt64.from(0),
-                price: UInt64.from(0),
+              quoteTokenBalance: RollupMinaBalance.fromAccountData({
+                amount: faucetQuoteTokenAmount,
+                stakedAmount: 0n,
+                borrowedAmount: 0n,
+              }),
+              bid: RollupOrder.fromAccountData({
+                amount: 0n,
+                price: 0n,
+                isSome: false,
+              }),
+              ask: RollupOrder.fromAccountData({
+                amount: 0n,
+                price: 0n,
+                isSome: false,
               }),
               nonce: UInt64.from(0),
             });
             const { proof, auxiliaryOutput } = await DEXProgram.ask(
               dexState,
-              map,
+              maps[maps.length - 1],
               item.action as RollupActionAsk,
               account
             );
             dexProof = proof;
-            map = auxiliaryOutput;
-            map.root = proof.publicOutput.root;
-            map.length = proof.publicOutput.length;
+            maps.push(auxiliaryOutput.map);
+            //map.root = proof.publicOutput.root;
+            //map.length = proof.publicOutput.length;
             dexState = proof.publicOutput;
           }
           break;
         case Operation.BID:
           {
             const account = new RollupUserTradingAccount({
-              baseTokenBalance: {
-                amount: UInt64.from(faucetBaseTokenAmount),
-                stakedAmount: UInt64.from(0),
-                borrowedAmount: UInt64.from(0),
-              },
-              quoteTokenBalance: {
-                amount: UInt64.from(faucetQuoteTokenAmount),
-                stakedAmount: UInt64.from(0),
-                borrowedAmount: UInt64.from(0),
-              },
-              bid: new RollupOrder({
-                amount: UInt64.from(0),
-                price: UInt64.from(0),
+              baseTokenBalance: RollupMinaBalance.fromAccountData({
+                amount: faucetBaseTokenAmount,
+                stakedAmount: 0n,
+                borrowedAmount: 0n,
               }),
-              ask: new RollupOrder({
-                amount: UInt64.from(0),
-                price: UInt64.from(0),
+              quoteTokenBalance: RollupMinaBalance.fromAccountData({
+                amount: faucetQuoteTokenAmount,
+                stakedAmount: 0n,
+                borrowedAmount: 0n,
+              }),
+              bid: RollupOrder.fromAccountData({
+                amount: 0n,
+                price: 0n,
+                isSome: false,
+              }),
+              ask: RollupOrder.fromAccountData({
+                amount: 0n,
+                price: 0n,
+                isSome: false,
               }),
               nonce: UInt64.from(0),
             });
             const { proof, auxiliaryOutput } = await DEXProgram.bid(
               dexState,
-              map,
+              maps[maps.length - 1],
               item.action as RollupActionBid,
               account
             );
             dexProof = proof;
-            map = auxiliaryOutput;
-            map.root = proof.publicOutput.root;
-            map.length = proof.publicOutput.length;
+            maps.push(auxiliaryOutput.map);
+            //map.root = proof.publicOutput.root;
+            //map.length = proof.publicOutput.length;
             dexState = proof.publicOutput;
           }
           break;
         case Operation.TRADE:
           {
             const buyerAccount = new RollupUserTradingAccount({
-              baseTokenBalance: {
-                amount: UInt64.from(faucetBaseTokenAmount),
-                stakedAmount: UInt64.from(0),
-                borrowedAmount: UInt64.from(0),
-              },
-              quoteTokenBalance: {
-                amount: UInt64.from(faucetQuoteTokenAmount),
-                stakedAmount: UInt64.from(0),
-                borrowedAmount: UInt64.from(0),
-              },
-              bid: new RollupOrder({
-                amount: UInt64.from(tradeBaseTokenAmount),
-                price: UInt64.from(tradePrice),
+              baseTokenBalance: RollupMinaBalance.fromAccountData({
+                amount: faucetBaseTokenAmount,
+                stakedAmount: 0n,
+                borrowedAmount: 0n,
               }),
-              ask: new RollupOrder({
-                amount: UInt64.from(0),
-                price: UInt64.from(0),
+              quoteTokenBalance: RollupMinaBalance.fromAccountData({
+                amount: faucetQuoteTokenAmount,
+                stakedAmount: 0n,
+                borrowedAmount: 0n,
+              }),
+              bid: RollupOrder.fromAccountData({
+                amount: tradeBaseTokenAmount,
+                price: tradePrice,
+                isSome: true,
+              }),
+              ask: RollupOrder.fromAccountData({
+                amount: 0n,
+                price: 0n,
+                isSome: false,
               }),
               nonce: UInt64.from(1),
             });
             const sellerAccount = new RollupUserTradingAccount({
-              baseTokenBalance: {
-                amount: UInt64.from(faucetBaseTokenAmount),
-                stakedAmount: UInt64.from(0),
-                borrowedAmount: UInt64.from(0),
-              },
-              quoteTokenBalance: {
-                amount: UInt64.from(faucetQuoteTokenAmount),
-                stakedAmount: UInt64.from(0),
-                borrowedAmount: UInt64.from(0),
-              },
-              bid: new RollupOrder({
-                amount: UInt64.from(0),
-                price: UInt64.from(0),
+              baseTokenBalance: RollupMinaBalance.fromAccountData({
+                amount: faucetBaseTokenAmount,
+                stakedAmount: 0n,
+                borrowedAmount: 0n,
               }),
-              ask: new RollupOrder({
-                amount: UInt64.from(tradeBaseTokenAmount),
-                price: UInt64.from(tradePrice),
+              quoteTokenBalance: RollupMinaBalance.fromAccountData({
+                amount: faucetQuoteTokenAmount,
+                stakedAmount: 0n,
+                borrowedAmount: 0n,
+              }),
+              bid: RollupOrder.fromAccountData({
+                amount: 0n,
+                price: 0n,
+                isSome: false,
+              }),
+              ask: RollupOrder.fromAccountData({
+                amount: tradeBaseTokenAmount,
+                price: tradePrice,
+                isSome: true,
               }),
               nonce: UInt64.from(1),
             });
             const { proof, auxiliaryOutput } = await DEXProgram.trade(
               dexState,
-              map,
+              maps[maps.length - 1],
               item.action as RollupActionTrade,
               buyerAccount,
               sellerAccount
             );
             dexProof = proof;
-            map = auxiliaryOutput;
-            map.root = proof.publicOutput.root;
-            map.length = proof.publicOutput.length;
+            maps.push(auxiliaryOutput.map);
+            //map.root = proof.publicOutput.root;
+            //map.length = proof.publicOutput.length;
             dexState = proof.publicOutput;
           }
           break;
         case Operation.TRANSFER:
           {
             const senderAccount = new RollupUserTradingAccount({
-              baseTokenBalance: {
-                amount: UInt64.from(
+              baseTokenBalance: RollupMinaBalance.fromAccountData({
+                amount:
                   1_000_000_000_000n -
-                    faucetBaseTokenAmount *
-                      (
-                        item.action as RollupActionTransfer
-                      ).senderNonce.toBigInt()
-                ),
-                stakedAmount: UInt64.from(0),
-                borrowedAmount: UInt64.from(0),
-              },
-              quoteTokenBalance: {
-                amount: UInt64.from(
-                  2_000_000_000_000_000n -
-                    faucetQuoteTokenAmount *
-                      (
-                        item.action as RollupActionTransfer
-                      ).senderNonce.toBigInt()
-                ),
-                stakedAmount: UInt64.from(0),
-                borrowedAmount: UInt64.from(0),
-              },
-              bid: new RollupOrder({
-                amount: UInt64.from(0),
-                price: UInt64.from(0),
+                  faucetBaseTokenAmount *
+                    (
+                      item.action as RollupActionTransfer
+                    ).senderNonce.toBigInt(),
+                stakedAmount: 0n,
+                borrowedAmount: 0n,
               }),
-              ask: new RollupOrder({
-                amount: UInt64.from(0),
-                price: UInt64.from(0),
+              quoteTokenBalance: RollupMinaBalance.fromAccountData({
+                amount:
+                  2_000_000_000_000_000n -
+                  faucetQuoteTokenAmount *
+                    (
+                      item.action as RollupActionTransfer
+                    ).senderNonce.toBigInt(),
+                stakedAmount: 0n,
+                borrowedAmount: 0n,
+              }),
+              bid: RollupOrder.fromAccountData({
+                amount: 0n,
+                price: 0n,
+                isSome: false,
+              }),
+              ask: RollupOrder.fromAccountData({
+                amount: 0n,
+                price: 0n,
+                isSome: false,
               }),
               nonce: UInt64.from(
                 (item.action as RollupActionTransfer).senderNonce
               ),
             });
             const receiverAccount = new RollupUserTradingAccount({
-              baseTokenBalance: {
-                amount: UInt64.from(0),
-                stakedAmount: UInt64.from(0),
-                borrowedAmount: UInt64.from(0),
-              },
-              quoteTokenBalance: {
-                amount: UInt64.from(0),
-                stakedAmount: UInt64.from(0),
-                borrowedAmount: UInt64.from(0),
-              },
-              bid: new RollupOrder({
-                amount: UInt64.from(0),
-                price: UInt64.from(0),
+              baseTokenBalance: RollupMinaBalance.fromAccountData({
+                amount: 0n,
+                stakedAmount: 0n,
+                borrowedAmount: 0n,
               }),
-              ask: new RollupOrder({
-                amount: UInt64.from(0),
-                price: UInt64.from(0),
+              quoteTokenBalance: RollupMinaBalance.fromAccountData({
+                amount: 0n,
+                stakedAmount: 0n,
+                borrowedAmount: 0n,
+              }),
+              bid: RollupOrder.fromAccountData({
+                amount: 0n,
+                price: 0n,
+                isSome: false,
+              }),
+              ask: RollupOrder.fromAccountData({
+                amount: 0n,
+                price: 0n,
+                isSome: false,
               }),
               nonce: UInt64.from(0),
             });
             const { proof, auxiliaryOutput } = await DEXProgram.transfer(
               dexState,
-              map,
+              maps[maps.length - 1],
               item.action as RollupActionTransfer,
               senderAccount,
               receiverAccount
             );
             dexProof = proof;
-            map = auxiliaryOutput;
-            map.root = proof.publicOutput.root;
-            map.length = proof.publicOutput.length;
+            maps.push(auxiliaryOutput.map);
+            //map.root = proof.publicOutput.root;
+            //map.length = proof.publicOutput.length;
             dexState = proof.publicOutput;
           }
           break;

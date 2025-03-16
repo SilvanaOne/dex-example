@@ -76,7 +76,7 @@ export async function fetchDexAccount(
           price: BigInt(data?.ask?.fields?.price),
           isSome: data?.ask?.fields?.isSome,
         },
-        nonce: Number(data?.nonce),
+        nonce: data?.nonce,
       };
       return result;
     }

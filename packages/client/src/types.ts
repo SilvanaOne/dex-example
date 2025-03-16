@@ -118,7 +118,7 @@ export interface UserTradingAccount {
   quoteTokenBalance: MinaBalance;
   bid: Order;
   ask: Order;
-  nonce: number;
+  nonce: bigint;
 }
 
 export interface User {
@@ -129,6 +129,14 @@ export interface User {
   role: string;
   image: string;
   account: UserTradingAccount;
+}
+
+export interface DEXState {
+  poolPublicKey: string;
+  root: bigint;
+  length: bigint;
+  actionState: bigint;
+  sequence: bigint;
 }
 
 export interface OperationData {

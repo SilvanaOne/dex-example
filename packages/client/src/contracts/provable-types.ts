@@ -13,12 +13,15 @@ import {
   Signature,
 } from "o1js";
 import {
+  MinaBalance,
   UserTradingAccount,
   ActionCreateAccount,
   ActionBid,
   ActionAsk,
   ActionTrade,
   ActionTransfer,
+  DEXState,
+  Order,
 } from "../types.js";
 
 export const DEX_HEIGHT = 10; // TODO: change to 20 in production
@@ -27,19 +30,39 @@ type IndexedMerkleMap = Experimental.IndexedMerkleMap;
 
 export class DEXMap extends IndexedMerkleMap(DEX_HEIGHT) {}
 
-export class DEXState extends Struct({
+export class RollupDEXState extends Struct({
   poolPublicKey: PublicKey,
   root: Field,
   length: Field,
   actionState: Field, // TODO: check in production
   sequence: UInt64,
 }) {
-  static assertEquals(a: DEXState, b: DEXState) {
+  static assertEquals(a: RollupDEXState, b: RollupDEXState) {
     a.poolPublicKey.assertEquals(b.poolPublicKey);
     a.root.assertEquals(b.root);
     a.length.assertEquals(b.length);
     a.actionState.assertEquals(b.actionState);
     a.sequence.assertEquals(b.sequence);
+  }
+
+  static fromRollupData(rollupData: DEXState): RollupDEXState {
+    return new RollupDEXState({
+      poolPublicKey: PublicKey.fromBase58(rollupData.poolPublicKey),
+      root: Field.from(rollupData.root),
+      length: Field.from(rollupData.length),
+      actionState: Field.from(rollupData.actionState),
+      sequence: UInt64.from(rollupData.sequence),
+    });
+  }
+
+  toRollupData(): DEXState {
+    return {
+      poolPublicKey: this.poolPublicKey.toBase58(),
+      root: this.root.toBigInt(),
+      length: this.length.toBigInt(),
+      actionState: this.actionState.toBigInt(),
+      sequence: this.sequence.toBigInt(),
+    } as DEXState;
   }
 }
 
@@ -47,13 +70,46 @@ export class RollupMinaBalance extends Struct({
   amount: UInt64,
   stakedAmount: UInt64,
   borrowedAmount: UInt64,
-}) {}
+}) {
+  static fromAccountData(accountData: MinaBalance): RollupMinaBalance {
+    return new RollupMinaBalance({
+      amount: UInt64.from(accountData.amount),
+      stakedAmount: UInt64.from(accountData.stakedAmount),
+      borrowedAmount: UInt64.from(accountData.borrowedAmount),
+    });
+  }
+
+  toAccountData(): MinaBalance {
+    return {
+      amount: this.amount.toBigInt(),
+      stakedAmount: this.stakedAmount.toBigInt(),
+      borrowedAmount: this.borrowedAmount.toBigInt(),
+    } as MinaBalance;
+  }
+}
 
 export class RollupOrder extends Struct({
   amount: UInt64,
   price: UInt64,
-}) {}
+}) {
+  static fromAccountData(accountData: Order): RollupOrder {
+    return new RollupOrder({
+      amount: UInt64.from(accountData.amount),
+      price: UInt64.from(accountData.price),
+    });
+  }
 
+  toAccountData(): Order {
+    const amount = this.amount.toBigInt();
+    const price = this.price.toBigInt();
+    const isSome = amount > 0n && price > 0n;
+    return {
+      amount,
+      price,
+      isSome,
+    } as Order;
+  }
+}
 export class RollupUserTradingAccount extends Struct({
   baseTokenBalance: RollupMinaBalance,
   quoteTokenBalance: RollupMinaBalance,
@@ -67,30 +123,26 @@ export class RollupUserTradingAccount extends Struct({
 
   fromAccountData(accountData: UserTradingAccount): RollupUserTradingAccount {
     return new RollupUserTradingAccount({
-      baseTokenBalance: new RollupMinaBalance({
-        amount: UInt64.from(accountData.baseTokenBalance.amount),
-        stakedAmount: UInt64.from(accountData.baseTokenBalance.stakedAmount),
-        borrowedAmount: UInt64.from(
-          accountData.baseTokenBalance.borrowedAmount
-        ),
-      }),
-      quoteTokenBalance: new RollupMinaBalance({
-        amount: UInt64.from(accountData.quoteTokenBalance.amount),
-        stakedAmount: UInt64.from(accountData.quoteTokenBalance.stakedAmount),
-        borrowedAmount: UInt64.from(
-          accountData.quoteTokenBalance.borrowedAmount
-        ),
-      }),
-      bid: new RollupOrder({
-        amount: UInt64.from(accountData.bid.amount),
-        price: UInt64.from(accountData.bid.price),
-      }),
-      ask: new RollupOrder({
-        amount: UInt64.from(accountData.ask.amount),
-        price: UInt64.from(accountData.ask.price),
-      }),
+      baseTokenBalance: RollupMinaBalance.fromAccountData(
+        accountData.baseTokenBalance
+      ),
+      quoteTokenBalance: RollupMinaBalance.fromAccountData(
+        accountData.quoteTokenBalance
+      ),
+      bid: RollupOrder.fromAccountData(accountData.bid),
+      ask: RollupOrder.fromAccountData(accountData.ask),
       nonce: UInt64.from(accountData.nonce),
     });
+  }
+
+  toAccountData(): UserTradingAccount {
+    return {
+      baseTokenBalance: this.baseTokenBalance.toAccountData(),
+      quoteTokenBalance: this.quoteTokenBalance.toAccountData(),
+      bid: this.bid.toAccountData(),
+      ask: this.ask.toAccountData(),
+      nonce: this.nonce.toBigInt(),
+    } as UserTradingAccount;
   }
 }
 
@@ -243,3 +295,20 @@ export class RollupActionTransfer extends Struct({
     });
   }
 }
+
+export class AccountAuxiliaryOutput extends Struct({
+  map: DEXMap,
+  account: RollupUserTradingAccount,
+}) {}
+
+export class TradeAuxiliaryOutput extends Struct({
+  map: DEXMap,
+  buyer: RollupUserTradingAccount,
+  seller: RollupUserTradingAccount,
+}) {}
+
+export class TransferAuxiliaryOutput extends Struct({
+  map: DEXMap,
+  sender: RollupUserTradingAccount,
+  receiver: RollupUserTradingAccount,
+}) {}

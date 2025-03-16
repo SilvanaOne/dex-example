@@ -3,7 +3,7 @@ module dex::prover;
 use std::string::String;
 use sui::clock::Clock;
 use sui::event;
-use sui::vec_map::{VecMap, get, insert, get_mut};
+use sui::vec_map::{VecMap, get, insert, get_mut, empty};
 
 #[allow(unused_field)]
 public struct Circuit has key, store {
@@ -11,6 +11,8 @@ public struct Circuit has key, store {
     name: String,
     description: String,
     package_da_hash: String,
+    verification_key_hash: u256,
+    verification_key_data: String,
     created_at: u64,
 }
 
@@ -87,7 +89,7 @@ public struct ProofCalculationRequestEvent has copy, drop {
 public struct ProofCalculationCreatedEvent has copy, drop {
     block_number: u64,
     timestamp: u64,
-    circuit_package: address,
+    circuit: address,
 }
 
 public struct ProofCalculationInProgressEvent has copy, drop {
@@ -120,12 +122,12 @@ public struct ProofCalculationAbandonedEvent has copy, drop {
     timestamp: u64,
 }
 
-public struct ProofCalculation has key {
+public struct ProofCalculation has key, store {
     id: UID,
     block_number: u64,
     sequences: Option<vector<u64>>,
     statuses: VecMap<vector<u64>, ProofStatus>,
-    circuit_package: Option<address>, // TODO: remove option
+    circuit: address,
     block_proof: Option<Proof>,
     is_failed: bool,
 }
@@ -134,49 +136,57 @@ public fun create_circuit(
     name: String,
     description: String,
     package_da_hash: String,
+    verification_key_hash: u256,
+    verification_key_data: String,
     clock: &Clock,
     ctx: &mut TxContext,
-): address {
+): (Circuit, address) {
     let id = object::new(ctx);
-    let address = id.to_address();
     let timestamp = sui::clock::timestamp_ms(clock);
+    let address = id.to_address();
     let circuit = Circuit {
         id,
         name,
         description,
         package_da_hash,
+        verification_key_hash,
+        verification_key_data,
         created_at: timestamp,
     };
-    transfer::freeze_object(circuit);
-    address
+    (circuit, address)
 }
 
 public fun create_block_proof_calculation(
     block_number: u64,
-    circuit_package: address,
+    circuit: address,
+    sequences: Option<vector<u64>>,
     clock: &Clock,
     ctx: &mut TxContext,
-): address {
-    let statuses = /* ERROR: */ /* ERROR: */sui::vec_map::empty<vector<u64>, ProofStatus>();
+): (ProofCalculation, address) {
+    let statuses = empty<vector<u64>, ProofStatus>();
     let id = object::new(ctx);
     let address = id.to_address();
     let timestamp = sui::clock::timestamp_ms(clock);
     let proof_calculation = ProofCalculation {
         id,
         block_number,
-        sequences: option::none(),
+        sequences,
         statuses,
         block_proof: option::none(),
         is_failed: false,
-        circuit_package: option::some(circuit_package),
+        circuit,
     };
     event::emit(ProofCalculationCreatedEvent {
         block_number,
-        circuit_package,
+        circuit,
         timestamp,
     });
-    transfer::share_object(proof_calculation);
-    address
+    //transfer::share_object(proof_calculation);
+    (proof_calculation, address)
+}
+
+public fun get_proof_calculation_address(proof_calculation: &ProofCalculation): address {
+    proof_calculation.id.to_address()
 }
 
 public fun request_proof_calculation(
@@ -204,7 +214,7 @@ public fun request_proof_calculation(
         proof_calculation: proof_calculation.id.to_address(),
         block_number: proof_calculation.block_number,
         sequences: vector[sequence],
-        circuit: *option::borrow(&proof_calculation.circuit_package),
+        circuit: proof_calculation.circuit,
         operation,
     });
 }
@@ -352,7 +362,7 @@ public fun submit_proof(
                             proof_calculation: proof_calculation.id.to_address(),
                             block_number: proof_calculation.block_number,
                             sequences: new_sequences,
-                            circuit: *option::borrow(&proof_calculation.circuit_package),
+                            circuit: proof_calculation.circuit,
                             operation: 0,
                         });
 
@@ -384,7 +394,7 @@ public fun submit_proof(
                             proof_calculation: proof_calculation.id.to_address(),
                             block_number: proof_calculation.block_number,
                             sequences: new_sequences,
-                            circuit: *option::borrow(&proof_calculation.circuit_package),
+                            circuit: proof_calculation.circuit,
                             operation: 0,
                         });
 

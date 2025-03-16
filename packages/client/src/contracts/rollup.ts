@@ -6,9 +6,10 @@ import {
   Field,
   Bool,
   SelfProof,
+  Struct,
 } from "o1js";
 import {
-  DEXState,
+  RollupDEXState,
   DEXMap,
   RollupActionCreateAccount,
   RollupActionBid,
@@ -18,26 +19,29 @@ import {
   RollupUserTradingAccount,
   RollupMinaBalance,
   RollupOrder,
-} from "./types.js";
+  AccountAuxiliaryOutput,
+  TradeAuxiliaryOutput,
+  TransferAuxiliaryOutput,
+} from "./provable-types.js";
 import { mulDiv } from "./div.js";
 import { Operation } from "../types.js";
 import { getMinaSignatureData } from "./signature.js";
 
 export const DEXProgram = ZkProgram({
   name: "DEXProgram",
-  publicInput: DEXState,
-  publicOutput: DEXState,
+  publicInput: RollupDEXState,
+  publicOutput: RollupDEXState,
   methods: {
     createAccount: {
       privateInputs: [DEXMap, RollupActionCreateAccount],
-      auxiliaryOutput: DEXMap,
+      auxiliaryOutput: AccountAuxiliaryOutput,
       async method(
-        input: DEXState,
+        input: RollupDEXState,
         map: DEXMap,
         action: RollupActionCreateAccount
       ): Promise<{
-        publicOutput: DEXState;
-        auxiliaryOutput: DEXMap;
+        publicOutput: RollupDEXState;
+        auxiliaryOutput: AccountAuxiliaryOutput;
       }> {
         map.root.assertEquals(input.root);
         map.length.assertEquals(input.length);
@@ -67,29 +71,29 @@ export const DEXProgram = ZkProgram({
         map.set(key, account.hash());
 
         return {
-          publicOutput: new DEXState({
+          publicOutput: new RollupDEXState({
             poolPublicKey: input.poolPublicKey,
             root: map.root,
             length: map.length,
             actionState: input.actionState,
             sequence: input.sequence.add(1),
           }),
-          auxiliaryOutput: map,
+          auxiliaryOutput: new AccountAuxiliaryOutput({ map, account }),
         };
       },
     },
 
     bid: {
       privateInputs: [DEXMap, RollupActionBid, RollupUserTradingAccount],
-      auxiliaryOutput: DEXMap,
+      auxiliaryOutput: AccountAuxiliaryOutput,
       async method(
-        input: DEXState,
+        input: RollupDEXState,
         map: DEXMap,
         action: RollupActionBid,
         account: RollupUserTradingAccount
       ): Promise<{
-        publicOutput: DEXState;
-        auxiliaryOutput: DEXMap;
+        publicOutput: RollupDEXState;
+        auxiliaryOutput: AccountAuxiliaryOutput;
       }> {
         map.root.assertEquals(input.root);
         map.length.assertEquals(input.length);
@@ -120,29 +124,29 @@ export const DEXProgram = ZkProgram({
         map.set(key, account.hash());
 
         return {
-          publicOutput: new DEXState({
+          publicOutput: new RollupDEXState({
             poolPublicKey: input.poolPublicKey,
             root: map.root,
             length: map.length,
             actionState: input.actionState,
             sequence: input.sequence.add(1),
           }),
-          auxiliaryOutput: map,
+          auxiliaryOutput: new AccountAuxiliaryOutput({ map, account }),
         };
       },
     },
 
     ask: {
       privateInputs: [DEXMap, RollupActionAsk, RollupUserTradingAccount],
-      auxiliaryOutput: DEXMap,
+      auxiliaryOutput: AccountAuxiliaryOutput,
       async method(
-        input: DEXState,
+        input: RollupDEXState,
         map: DEXMap,
         action: RollupActionAsk,
         account: RollupUserTradingAccount
       ): Promise<{
-        publicOutput: DEXState;
-        auxiliaryOutput: DEXMap;
+        publicOutput: RollupDEXState;
+        auxiliaryOutput: AccountAuxiliaryOutput;
       }> {
         map.root.assertEquals(input.root);
         map.length.assertEquals(input.length);
@@ -170,14 +174,14 @@ export const DEXProgram = ZkProgram({
         map.set(key, account.hash());
 
         return {
-          publicOutput: new DEXState({
+          publicOutput: new RollupDEXState({
             poolPublicKey: input.poolPublicKey,
             root: map.root,
             length: map.length,
             actionState: input.actionState,
             sequence: input.sequence.add(1),
           }),
-          auxiliaryOutput: map,
+          auxiliaryOutput: new AccountAuxiliaryOutput({ map, account }),
         };
       },
     },
@@ -189,16 +193,16 @@ export const DEXProgram = ZkProgram({
         RollupUserTradingAccount,
         RollupUserTradingAccount,
       ],
-      auxiliaryOutput: DEXMap,
+      auxiliaryOutput: TradeAuxiliaryOutput,
       async method(
-        input: DEXState,
+        input: RollupDEXState,
         map: DEXMap,
         action: RollupActionTrade,
         buyer: RollupUserTradingAccount,
         seller: RollupUserTradingAccount
       ): Promise<{
-        publicOutput: DEXState;
-        auxiliaryOutput: DEXMap;
+        publicOutput: RollupDEXState;
+        auxiliaryOutput: TradeAuxiliaryOutput;
       }> {
         action.baseTokenAmount
           .equals(UInt64.zero)
@@ -266,14 +270,14 @@ export const DEXProgram = ZkProgram({
         map.set(sellerKey, seller.hash());
 
         return {
-          publicOutput: new DEXState({
+          publicOutput: new RollupDEXState({
             poolPublicKey: input.poolPublicKey,
             root: map.root,
             length: map.length,
             actionState: input.actionState,
             sequence: input.sequence.add(1),
           }),
-          auxiliaryOutput: map,
+          auxiliaryOutput: new TradeAuxiliaryOutput({ map, buyer, seller }),
         };
       },
     },
@@ -285,16 +289,16 @@ export const DEXProgram = ZkProgram({
         RollupUserTradingAccount,
         RollupUserTradingAccount,
       ],
-      auxiliaryOutput: DEXMap,
+      auxiliaryOutput: TransferAuxiliaryOutput,
       async method(
-        input: DEXState,
+        input: RollupDEXState,
         map: DEXMap,
         action: RollupActionTransfer,
         sender: RollupUserTradingAccount,
         receiver: RollupUserTradingAccount
       ): Promise<{
-        publicOutput: DEXState;
-        auxiliaryOutput: DEXMap;
+        publicOutput: RollupDEXState;
+        auxiliaryOutput: TransferAuxiliaryOutput;
       }> {
         action.baseTokenAmount
           .equals(UInt64.zero)
@@ -369,14 +373,18 @@ export const DEXProgram = ZkProgram({
         map.set(receiverKey, receiver.hash());
 
         return {
-          publicOutput: new DEXState({
+          publicOutput: new RollupDEXState({
             poolPublicKey: input.poolPublicKey,
             root: map.root,
             length: map.length,
             actionState: input.actionState,
             sequence: input.sequence.add(1),
           }),
-          auxiliaryOutput: map,
+          auxiliaryOutput: new TransferAuxiliaryOutput({
+            map,
+            sender,
+            receiver,
+          }),
         };
       },
     },
@@ -384,14 +392,14 @@ export const DEXProgram = ZkProgram({
     merge: {
       privateInputs: [SelfProof, SelfProof],
       async method(
-        input: DEXState,
-        proof1: SelfProof<DEXState, DEXState>,
-        proof2: SelfProof<DEXState, DEXState>
+        input: RollupDEXState,
+        proof1: SelfProof<RollupDEXState, RollupDEXState>,
+        proof2: SelfProof<RollupDEXState, RollupDEXState>
       ) {
         proof1.verify();
         proof2.verify();
-        DEXState.assertEquals(input, proof1.publicInput);
-        DEXState.assertEquals(proof1.publicOutput, proof2.publicInput);
+        RollupDEXState.assertEquals(input, proof1.publicInput);
+        RollupDEXState.assertEquals(proof1.publicOutput, proof2.publicInput);
         return {
           publicOutput: proof2.publicOutput,
         };

@@ -1,0 +1,68 @@
+module dex::token;
+
+use dex::admin::{Admin, get_admin_address};
+use std::string::String;
+use sui::event;
+
+public struct Token has key, store {
+    id: UID,
+    publicKey: u256,
+    publicKeyBase58: String,
+    tokenId: u256,
+    token: String,
+    name: String,
+    description: String,
+    image: String,
+}
+
+public struct TokenCreateEvent has copy, drop {
+    address: address,
+    publicKey: u256,
+    publicKeyBase58: String,
+    tokenId: u256,
+    token: String,
+    name: String,
+    description: String,
+    image: String,
+}
+
+#[error]
+const ENotAuthorized: vector<u8> = b"Not authorized";
+
+public fun create_token(
+    admin: &Admin,
+    publicKey: u256,
+    publicKeyBase58: String,
+    tokenId: u256,
+    token: String,
+    name: String,
+    description: String,
+    image: String,
+    ctx: &mut TxContext,
+): (Token, TokenCreateEvent) {
+    assert!(get_admin_address(admin) == ctx.sender(), ENotAuthorized);
+    let id = object::new(ctx);
+    let address = id.to_address();
+    let token = Token {
+        id,
+        publicKey,
+        publicKeyBase58,
+        tokenId,
+        token,
+        name,
+        description,
+        image,
+    };
+    let token_create_event = TokenCreateEvent {
+        address,
+        publicKey: token.publicKey,
+        publicKeyBase58: token.publicKeyBase58,
+        tokenId: token.tokenId,
+        token: token.token,
+        name: token.name,
+        description: token.description,
+        image: token.image,
+    };
+    event::emit(token_create_event);
+    (token, token_create_event)
+}
