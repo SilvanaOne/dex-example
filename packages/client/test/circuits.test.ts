@@ -15,8 +15,12 @@ import {
   Signature,
   VerificationKey,
   verify,
+  Mina,
+  AccountUpdate,
+  JsonProof,
 } from "o1js";
 import { DEXProgram, DEXProof } from "../src/contracts/rollup.js";
+import { DEXContract } from "../src/contracts/contract.js";
 import {
   Operation,
   ActionCreateAccount,
@@ -37,7 +41,39 @@ import {
   RollupOrder,
   RollupMinaBalance,
 } from "../src/contracts/provable-types.js";
+import {
+  fetchMinaAccount,
+  initBlockchain,
+  accountBalanceMina,
+  Memory,
+  sendTx,
+  pinJSON,
+} from "@silvana-one/mina-utils";
 import { signDexFields } from "../src/sign.js";
+import { TEST_ACCOUNTS } from "./helpers/config.js";
+
+const { TestPublicKey } = Mina;
+type TestPublicKey = Mina.TestPublicKey;
+
+let blockProof: string | null = null;
+
+const chain = process.env.MINA_CHAIN! as
+  | "local"
+  | "devnet"
+  | "zeko"
+  | "mainnet";
+if (
+  chain !== "local" &&
+  chain !== "devnet" &&
+  chain !== "zeko" &&
+  chain !== "mainnet"
+) {
+  throw new Error(`Invalid chain: ${chain}`);
+}
+const expectedTxStatus = chain === "zeko" ? "pending" : "included";
+
+const NUMBER_OF_USERS = 2;
+let admin: TestPublicKey;
 
 function getUser() {
   const privateKey = PrivateKey.random();
@@ -48,7 +84,10 @@ function getUser() {
 }
 
 let vk: VerificationKey | null = null;
-const poolPublicKey = PrivateKey.random().toPublicKey();
+let vkContract: VerificationKey | null = null;
+const poolKey = TestPublicKey.random();
+const poolPublicKey = poolKey;
+const dex = new DEXContract(poolKey);
 const faucetBaseTokenAmount = 1_000_000_000n;
 const faucetQuoteTokenAmount = 2_000_000_000_000n;
 const tradeBaseTokenAmount = 1_000_000_000n;
@@ -126,14 +165,14 @@ const operations: {
       receiverPublicKey: users.alice.publicKey.toBase58(),
       baseTokenAmount: faucetBaseTokenAmount,
       quoteTokenAmount: faucetQuoteTokenAmount,
-      senderNonce: 0,
-      receiverNonce: 0,
+      senderNonce: 0n,
+      receiverNonce: 0n,
       senderSignature: (
         await signDexFields({
           poolPublicKey: poolPublicKey.toBase58(),
           minaPrivateKey: users.faucet.privateKey.toBase58(),
           operation: Operation.TRANSFER,
-          nonce: 0,
+          nonce: 0n,
           baseTokenAmount: faucetBaseTokenAmount,
           quoteTokenAmount: faucetQuoteTokenAmount,
           receiverPublicKey: users.alice.publicKey.toBase58(),
@@ -148,14 +187,14 @@ const operations: {
       receiverPublicKey: users.bob.publicKey.toBase58(),
       baseTokenAmount: faucetBaseTokenAmount,
       quoteTokenAmount: faucetQuoteTokenAmount,
-      senderNonce: 1,
-      receiverNonce: 0,
+      senderNonce: 1n,
+      receiverNonce: 0n,
       senderSignature: (
         await signDexFields({
           poolPublicKey: poolPublicKey.toBase58(),
           minaPrivateKey: users.faucet.privateKey.toBase58(),
           operation: Operation.TRANSFER,
-          nonce: 1,
+          nonce: 1n,
           baseTokenAmount: faucetBaseTokenAmount,
           quoteTokenAmount: faucetQuoteTokenAmount,
           receiverPublicKey: users.bob.publicKey.toBase58(),
@@ -171,13 +210,13 @@ const operations: {
       baseTokenAmount: tradeBaseTokenAmount,
       price: tradePrice,
       isSome: true,
-      nonce: 1,
+      nonce: 1n,
       userSignature: (
         await signDexFields({
           poolPublicKey: poolPublicKey.toBase58(),
           minaPrivateKey: users.alice.privateKey.toBase58(),
           operation: Operation.ASK,
-          nonce: 1,
+          nonce: 1n,
           baseTokenAmount: tradeBaseTokenAmount,
           price: tradePrice,
         })
@@ -192,13 +231,13 @@ const operations: {
       baseTokenAmount: tradeBaseTokenAmount,
       price: tradePrice,
       isSome: true,
-      nonce: 1,
+      nonce: 1n,
       userSignature: (
         await signDexFields({
           poolPublicKey: poolPublicKey.toBase58(),
           minaPrivateKey: users.bob.privateKey.toBase58(),
           operation: Operation.BID,
-          nonce: 1,
+          nonce: 1n,
           baseTokenAmount: tradeBaseTokenAmount,
           price: tradePrice,
         })
@@ -214,8 +253,8 @@ const operations: {
       baseTokenAmount: tradeBaseTokenAmount,
       quoteTokenAmount: tradeQuoteTokenAmount,
       price: tradePrice,
-      buyerNonce: 2,
-      sellerNonce: 2,
+      buyerNonce: 2n,
+      sellerNonce: 2n,
     } as ActionTrade,
   },
 ];
@@ -287,11 +326,51 @@ let dexState = new RollupDEXState({
   poolPublicKey: poolPublicKey,
   root: maps[0].root,
   length: maps[0].length,
-  actionState: Field.random(),
+  actionState: Field(0),
   sequence: UInt64.from(0),
 });
 
 describe("Circuits", async () => {
+  it("should initialize a blockchain", async () => {
+    if (chain === "devnet" || chain === "zeko" || chain === "mainnet") {
+      await initBlockchain(chain);
+      admin = TestPublicKey.fromBase58(TEST_ACCOUNTS[0].privateKey);
+      // users = TEST_ACCOUNTS.slice(1).map((account) =>
+      //   TestPublicKey.fromBase58(account.privateKey)
+      // );
+    } else if (chain === "local") {
+      const { keys } = await initBlockchain(chain, NUMBER_OF_USERS + 2);
+      admin = TestPublicKey(keys[1].key);
+      // users = keys.slice(2);
+    } else if (chain === "lightnet") {
+      const { keys } = await initBlockchain(chain, NUMBER_OF_USERS + 2);
+
+      admin = TestPublicKey(keys[1].key);
+      // users = keys.slice(2);
+    }
+    // assert(users.length >= NUMBER_OF_USERS);
+    console.log("chain:", chain);
+    console.log("networkId:", Mina.getNetworkId());
+
+    console.log("DEX contract address:", poolPublicKey.toBase58());
+
+    console.log(
+      "Admin",
+      admin.toBase58(),
+      "balance:",
+      await accountBalanceMina(admin)
+    );
+    // for (let i = 0; i < NUMBER_OF_USERS; i++) {
+    //   console.log(
+    //     `User ${i} `,
+    //     users[i].publicKey.toBase58(),
+    //     "balance:",
+    //     await accountBalanceMina(users[i])
+    //   );
+    // }
+    Memory.info("before compiling");
+  });
+
   it("should analyze circuits methods", async () => {
     console.log("Analyzing circuits methods...");
     console.time("methods analyzed");
@@ -303,6 +382,11 @@ describe("Circuits", async () => {
     methods.push({
       name: "DEXProgram",
       result: await DEXProgram.analyzeMethods(),
+      skip: false,
+    });
+    methods.push({
+      name: "DEXContract",
+      result: await DEXContract.analyzeMethods(),
       skip: false,
     });
 
@@ -334,12 +418,54 @@ describe("Circuits", async () => {
   });
 
   it("should compile DEX Program", async () => {
-    console.log("compiling...");
-    console.time("compiled");
+    console.log("compiling DEX Program...");
+    console.time("compiled DEX Program");
     const cache = Cache.FileSystem("./cache");
     const { verificationKey } = await DEXProgram.compile({ cache });
     vk = verificationKey;
-    console.timeEnd("compiled");
+    console.timeEnd("compiled DEX Program");
+  });
+
+  it("should compile DEX Contract", async () => {
+    console.log("compiling DEX Contract...");
+    console.time("compiled DEX Contract");
+    const cache = Cache.FileSystem("./cache");
+    const { verificationKey } = await DEXContract.compile({ cache });
+    vkContract = verificationKey;
+    console.timeEnd("compiled DEX Contract");
+  });
+
+  it("should deploy a DEX Contract", async () => {
+    console.time("deployed");
+
+    await fetchMinaAccount({ publicKey: admin, force: true });
+
+    const tx = await Mina.transaction(
+      {
+        sender: admin,
+        fee: 100_000_000,
+        memo: `Deploy DEX Contract`,
+      },
+      async () => {
+        AccountUpdate.fundNewAccount(admin, 1);
+
+        await dex.deploy({
+          admin: admin,
+          uri: `DEX Contract`,
+        });
+      }
+    );
+    await tx.prove();
+    assert.strictEqual(
+      (
+        await sendTx({
+          tx: tx.sign([admin.key, poolKey.key]),
+          description: "deploy DEX Contract",
+        })
+      )?.status,
+      expectedTxStatus
+    );
+    console.timeEnd("deployed");
   });
 
   it("should create proofs", async () => {
@@ -611,8 +737,42 @@ describe("Circuits", async () => {
       proofs.push(mergedProof.proof);
     }
     console.timeEnd("merged");
-    const blockProof = proofs[proofs.length - 1].toJSON();
-    const ok = await verify(blockProof, vk);
+    blockProof = JSON.stringify(proofs[proofs.length - 1].toJSON(), null, 2);
+    const blockProofJson = JSON.parse(blockProof) as JsonProof;
+    const ok = await verify(blockProofJson, vk);
     console.log(`block proof: ${ok}`);
+  });
+  it("should settle proof on L1", async () => {
+    Memory.info("before settle");
+    console.time("settled");
+    await fetchMinaAccount({ publicKey: admin, force: true });
+    await fetchMinaAccount({ publicKey: poolKey, force: true });
+    if (!blockProof) {
+      throw new Error("blockProof is null");
+    }
+    const blockProofJson = JSON.parse(blockProof) as JsonProof;
+    const proof = await DEXProof.fromJSON(blockProofJson);
+
+    const tx = await Mina.transaction(
+      {
+        sender: admin,
+        fee: 100_000_000,
+        memo: `Settle proof`.substring(0, 30),
+      },
+      async () => {
+        await dex.settle(proof);
+      }
+    );
+    await tx.prove();
+    assert.strictEqual(
+      (
+        await sendTx({
+          tx: tx.sign([admin.key]),
+          description: "settle proof",
+        })
+      )?.status,
+      expectedTxStatus
+    );
+    console.timeEnd("settled");
   });
 });

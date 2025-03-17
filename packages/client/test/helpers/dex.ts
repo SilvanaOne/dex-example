@@ -160,6 +160,6 @@ export function createUserTradingAccount(params: {
       price: 0n,
       isSome: false,
     },
-    nonce: 0,
+    nonce: 0n,
   };
 }

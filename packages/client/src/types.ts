@@ -231,7 +231,7 @@ export interface ActionBid {
   baseTokenAmount: bigint;
   price: bigint;
   isSome: boolean;
-  nonce: number;
+  nonce: bigint;
   userSignature: MinaSignature;
 }
 
@@ -241,7 +241,7 @@ export interface ActionAsk {
   baseTokenAmount: bigint;
   price: bigint;
   isSome: boolean;
-  nonce: number;
+  nonce: bigint;
   userSignature: MinaSignature;
 }
 
@@ -252,8 +252,8 @@ export interface ActionTrade {
   baseTokenAmount: bigint;
   quoteTokenAmount: bigint;
   price: bigint;
-  buyerNonce: number;
-  sellerNonce: number;
+  buyerNonce: bigint;
+  sellerNonce: bigint;
 }
 
 export interface ActionTransfer {
@@ -261,8 +261,8 @@ export interface ActionTransfer {
   receiverPublicKey: string;
   baseTokenAmount: bigint;
   quoteTokenAmount: bigint;
-  senderNonce: number;
-  receiverNonce: number;
+  senderNonce: bigint;
+  receiverNonce: bigint;
   senderSignature: MinaSignature;
 }
 
