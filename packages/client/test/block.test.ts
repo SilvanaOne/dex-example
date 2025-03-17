@@ -11,14 +11,12 @@ import { readFromWalrus, saveToWalrus } from "../src/walrus.js";
 import {
   OperationEvent,
   BlockData,
-  BlockState,
   Block,
   RawBlock,
   rawBlockToBlock,
   UserTradingAccount,
 } from "../src/types.js";
 import { writeFile } from "node:fs/promises";
-import { u256ToPublicKey } from "../src/public-key.js";
 
 const adminSecretKey: string = process.env.ADMIN_SECRET_KEY!;
 const adminAddress: string = process.env.ADMIN!;
@@ -28,9 +26,8 @@ if (!adminSecretKey) {
 
 const packageID = process.env.PACKAGE_ID;
 const dexID = process.env.DEX_ID;
-const poolID = process.env.POOL_ID;
+const adminID = process.env.ADMIN_ID;
 let blockID: string | undefined = undefined;
-let blockStateID: string | undefined = undefined;
 let blockBlobId: string | undefined = undefined;
 let blockEvents: OperationEvent[] | undefined = undefined;
 let sequences: number[] | undefined = undefined;
@@ -45,8 +42,8 @@ describe("DEX Block", async () => {
       throw new Error("DEX_ID is not set");
     }
 
-    if (!poolID) {
-      throw new Error("POOL_ID is not set");
+    if (!adminID) {
+      throw new Error("ADMIN_ID is not set");
     }
 
     const { address, keypair } = await getKey({
@@ -61,20 +58,20 @@ describe("DEX Block", async () => {
     const tx = new Transaction();
 
     const blockArguments = [
+      tx.object(adminID),
       tx.object(dexID),
-      tx.object(poolID),
       tx.object(SUI_CLOCK_OBJECT_ID),
     ];
 
     tx.moveCall({
       package: packageID,
-      module: "trade",
+      module: "main",
       function: "create_block",
       arguments: blockArguments,
     });
 
     tx.setSender(address);
-    tx.setGasBudget(100_000_000);
+    tx.setGasBudget(200_000_000);
 
     const signedTx = await tx.sign({
       signer: keypair,
@@ -101,23 +98,14 @@ describe("DEX Block", async () => {
     createBlockTx.objectChanges?.map((change) => {
       if (
         change.type === "created" &&
-        change.objectType.endsWith("trade::Block") &&
+        change.objectType.endsWith("main::Block") &&
         !change.objectType.includes("display")
       ) {
         blockID = change.objectId;
       }
-      if (
-        change.type === "created" &&
-        change.objectType.endsWith("trade::BlockState") &&
-        !change.objectType.includes("display")
-      ) {
-        blockStateID = change.objectId;
-      }
     });
     console.log(`blockID:`, blockID);
-    console.log(`blockStateID:`, blockStateID);
     assert.ok(blockID, "block ID is not set");
-    assert.ok(blockStateID, "block state ID is not set");
     const waitResult = await waitTx(digest);
     if (waitResult.errors) {
       console.log(`Errors for tx ${digest}:`, waitResult.errors);
@@ -135,10 +123,6 @@ describe("DEX Block", async () => {
   it("should save block and block state to Walrus", async () => {
     if (!blockID) {
       throw new Error("block ID is not set");
-    }
-
-    if (!blockStateID) {
-      throw new Error("block state ID is not set");
     }
 
     if (!adminAddress) {
@@ -161,62 +145,12 @@ describe("DEX Block", async () => {
     const rawBlock = (fetchedBlock?.data?.content as any)?.fields as RawBlock;
     assert.ok(rawBlock, "raw block is not set");
     const block: Block = rawBlockToBlock(rawBlock);
-    const fetchedState = await fetchSuiObject(blockStateID);
-    const blockState = (fetchedState?.data?.content as any)?.fields?.state
-      ?.fields?.contents;
-    assert.ok(blockState, "block state is not set");
-    assert.ok(Array.isArray(blockState), "block state is not an array");
-    const state: BlockState = {
-      name: (fetchedState?.data?.content as any)?.fields?.name,
-      blockNumber: Number(
-        (fetchedState?.data?.content as any)?.fields?.block_number
-      ),
-      state: Object.fromEntries(
-        blockState.map((item) => {
-          if (!item?.fields?.key || typeof item?.fields?.key !== "string") {
-            throw new Error("block state key is not a string");
-          }
-          const key = u256ToPublicKey(BigInt(item.fields.key)).toBase58();
-          const value = item.fields.value.fields;
-          const account: UserTradingAccount = {
-            baseTokenBalance: {
-              amount: BigInt(value.baseTokenBalance.fields.amount),
-              stakedAmount: BigInt(value.baseTokenBalance.fields.stakedAmount),
-              borrowedAmount: BigInt(
-                value.baseTokenBalance.fields.borrowedAmount
-              ),
-            },
-            quoteTokenBalance: {
-              amount: BigInt(value.quoteTokenBalance.fields.amount),
-              stakedAmount: BigInt(value.quoteTokenBalance.fields.stakedAmount),
-              borrowedAmount: BigInt(
-                value.quoteTokenBalance.fields.borrowedAmount
-              ),
-            },
-            bid: {
-              amount: BigInt(value.bid.fields.amount),
-              price: BigInt(value.bid.fields.price),
-              isSome: value.bid.fields.isSome,
-            },
-            ask: {
-              amount: BigInt(value.ask.fields.amount),
-              price: BigInt(value.ask.fields.price),
-              isSome: value.ask.fields.isSome,
-            },
-            nonce: Number(value.nonce),
-          };
-          return [key, account];
-        })
-      ),
-    };
-    console.log(`state:`, state);
+    //console.log(`block:`, block);
     const blockData: BlockData = {
       blockNumber,
       blockID,
-      blockStateID,
       sequences,
       block,
-      state,
       events: blockEvents,
     };
     blockBlobId = await saveToWalrus({
@@ -279,7 +213,7 @@ describe("DEX Block", async () => {
 
     tx.moveCall({
       package: packageID,
-      module: "trade",
+      module: "main",
       function: "update_block_state_data_availability",
       arguments: blockArguments,
     });

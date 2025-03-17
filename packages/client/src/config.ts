@@ -11,8 +11,6 @@ import dotenv from "dotenv";
 export interface Config {
   dex_package: string;
   dex_object: string;
-  pool_object: string;
-  circuit_object: string;
   circuit_blob_id: string;
   mina_network: string;
   mina_chain: string;
@@ -28,7 +26,7 @@ export async function getConfig(): Promise<Config | undefined> {
     throw new Error("CONFIG_ID is not set");
   }
   const config = ((await fetchSuiObject(configID))?.data?.content as any)
-    ?.fields?.config?.fields;
+    ?.fields;
   if (!config) {
     return undefined;
   }
@@ -54,8 +52,6 @@ export async function updateConfig(config: Partial<Config>): Promise<void> {
     configObject = {
       dex_package: process.env.PACKAGE_ID || "",
       dex_object: process.env.DEX_ID || "",
-      pool_object: process.env.POOL_ID || "",
-      circuit_object: process.env.CIRCUIT_ID || "",
       circuit_blob_id: process.env.CIRCUIT_BLOB_ID || "",
       mina_network: "mina",
       mina_chain: process.env.MINA_CHAIN || "",
@@ -83,8 +79,6 @@ export async function updateConfig(config: Partial<Config>): Promise<void> {
       public fun update_config(
           dex_config: &mut DexConfig,
           dex_object: address,
-          pool_object: address,
-          circuit_object: address,
           circuit_blob_id: String,
           mina_network: String,
           mina_chain: String,
@@ -97,8 +91,6 @@ export async function updateConfig(config: Partial<Config>): Promise<void> {
     tx.object(configID),
     tx.pure.address(updatedConfig.dex_package || ""),
     tx.pure.address(updatedConfig.dex_object || ""),
-    tx.pure.address(updatedConfig.pool_object || ""),
-    tx.pure.address(updatedConfig.circuit_object || ""),
     tx.pure.string(updatedConfig.circuit_blob_id || ""),
     tx.pure.string(updatedConfig.mina_network || ""),
     tx.pure.string(updatedConfig.mina_chain || ""),
@@ -127,8 +119,9 @@ export async function updateConfig(config: Partial<Config>): Promise<void> {
   console.log("Config updated successfully:", digest);
 }
 
-export async function createConfig(): Promise<{
+export async function createConfig(config: Config): Promise<{
   configPackageID: string;
+  adminID: string;
   configID: string;
 }> {
   const adminSecretKey: string = process.env.ADMIN_SECRET_KEY!;
@@ -147,26 +140,26 @@ export async function createConfig(): Promise<{
     address,
     keypair,
   });
-  const { tx, digest, events } = await executeTx(signedTx);
+  const { tx: publishTx, digest, events } = await executeTx(signedTx);
   let configPackageID: string | undefined = undefined;
   let configID: string | undefined = undefined;
+  let adminID: string | undefined = undefined;
   //console.log(tx.objectChanges);
-  tx.objectChanges?.map((change) => {
+  publishTx.objectChanges?.map((change) => {
     if (change.type === "published") {
       configPackageID = change.packageId;
     } else if (
       change.type === "created" &&
-      change.objectType.includes("addresses::DexConfig") &&
-      !change.objectType.includes("display")
+      change.objectType.includes("addresses::ConfigAdmin")
     ) {
-      configID = change.objectId;
+      adminID = change.objectId;
     }
   });
   console.log("Published DEX config:", {
     digest,
     events,
     configPackageID,
-    configID,
+    adminID,
   });
   const waitResult = await waitTx(digest);
   if (waitResult.errors) {
@@ -175,6 +168,74 @@ export async function createConfig(): Promise<{
 
   if (!configPackageID) {
     throw new Error("Config package ID is not set");
+  }
+  if (!adminID) {
+    throw new Error("Admin ID is not set");
+  }
+
+  const tx = new Transaction();
+
+  /*
+      public fun create_config(
+          config_admin: &mut ConfigAdmin,
+          dex_package: address,
+          dex_object: address,
+          circuit_blob_id: String,
+          mina_network: String,
+          mina_chain: String,
+          mina_contract: String,
+          ctx: &mut TxContext,
+  */
+
+  const configArguments = [
+    tx.object(adminID),
+    tx.pure.address(config.dex_package || ""),
+    tx.pure.address(config.dex_object || ""),
+    tx.pure.string(config.circuit_blob_id || ""),
+    tx.pure.string(config.mina_network || ""),
+    tx.pure.string(config.mina_chain || ""),
+    tx.pure.string(config.mina_contract || ""),
+  ];
+
+  tx.moveCall({
+    package: configPackageID,
+    module: "addresses",
+    function: "create_config",
+    arguments: configArguments,
+  });
+
+  tx.setSender(address);
+  tx.setGasBudget(100_000_000);
+  const signedCreateTx = await tx.sign({
+    signer: keypair,
+    client: suiClient,
+  });
+
+  const {
+    tx: createTx,
+    digest: createDigest,
+    events: createEvents,
+  } = await executeTx(signedCreateTx);
+
+  createTx.objectChanges?.map((change) => {
+    if (
+      change.type === "created" &&
+      change.objectType.includes("addresses::DexConfig") &&
+      !change.objectType.includes("display")
+    ) {
+      configID = change.objectId;
+    }
+  });
+  console.log("Created DEX config:", {
+    digest: createDigest,
+    events: createEvents,
+    configPackageID,
+    adminID,
+    configID,
+  });
+  const waitCreateResult = await waitTx(createDigest);
+  if (waitCreateResult.errors) {
+    console.log(`Errors for tx ${createDigest}:`, waitCreateResult.errors);
   }
   if (!configID) {
     throw new Error("Config ID is not set");
@@ -189,7 +250,8 @@ CONFIG_PACKAGE_ID=${configPackageID}
 
 # Object IDs
 CONFIG_ID=${configID}
+ADMIN_ID=${adminID}
 `;
   await writeFile(`.env.${process.env.SUI_CHAIN}.config`, envContent);
-  return { configPackageID, configID };
+  return { configPackageID, configID, adminID };
 }

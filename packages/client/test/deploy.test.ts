@@ -11,6 +11,7 @@ import { executeTx, waitTx } from "../src/execute.js";
 import { TokenId } from "o1js";
 import { publicKeyToU256 } from "../src/public-key.js";
 import { createInitialState, DexObjects } from "./helpers/dex.js";
+import { updateConfig } from "../src/config.js";
 
 const userSecretKeys: string[] = [
   process.env.SECRET_KEY_1!,
@@ -31,9 +32,8 @@ userSecretKeys.map((secretKey) => {
 });
 
 let packageID: string | undefined = undefined;
+let adminID: string | undefined = undefined;
 let dexID: string | undefined = undefined;
-let poolID: string | undefined = undefined;
-let circuitID: string | undefined = undefined;
 let dexObjects: DexObjects | undefined = undefined;
 
 describe("Deploy DEX contracts", async () => {
@@ -55,17 +55,17 @@ describe("Deploy DEX contracts", async () => {
         packageID = change.packageId;
       } else if (
         change.type === "created" &&
-        change.objectType.includes("trade::DEX") &&
+        change.objectType.includes("admin::Admin") &&
         !change.objectType.includes("display")
       ) {
-        dexID = change.objectId;
+        adminID = change.objectId;
       }
     });
-    console.log("Published DEX contract:", {
+    console.log("Published DEX package:", {
       digest,
       events,
       packageID,
-      dexID,
+      adminID,
     });
 
     const waitResult = await waitTx(digest);
@@ -74,95 +74,32 @@ describe("Deploy DEX contracts", async () => {
     }
     assert.ok(!waitResult.errors, "publish transaction failed");
     assert.ok(packageID, "package ID is not set");
-    assert.ok(dexID, "DEX ID is not set");
+    assert.ok(adminID, "ADMIN ID is not set");
   });
 
-  it("should create circuit", async () => {
+  it("should create DEX", async () => {
     if (!packageID) {
       throw new Error("PACKAGE_ID is not set");
     }
 
-    if (!dexID) {
-      throw new Error("DEX_ID is not set");
+    if (!adminID) {
+      throw new Error("ADMIN_ID is not set");
     }
-    const { address, keypair } = await getKey({
-      secretKey: adminSecretKey,
-      name: "admin",
-    });
-
-    const tx = new Transaction();
 
     const CIRCUIT_BLOB_ID = process.env.CIRCUIT_BLOB_ID!;
     if (!CIRCUIT_BLOB_ID) {
       throw new Error("CIRCUIT_BLOB_ID is not set");
     }
-
-    /*
-        public fun create_circuit(
-            name: String,
-            description: String,
-            package_da_hash: String,
-            clock: &Clock,
-            ctx: &mut TxContext,
-    */
-
-    const circuitArguments = [
-      tx.pure.string("DEX Circuit"),
-      tx.pure.string("DEX Rollup Circuits for Mina protocol"),
-      tx.pure.string(CIRCUIT_BLOB_ID),
-      tx.object(SUI_CLOCK_OBJECT_ID),
-    ];
-
-    tx.moveCall({
-      package: packageID,
-      module: "prover",
-      function: "create_circuit",
-      arguments: circuitArguments,
-    });
-
-    tx.setSender(address);
-    tx.setGasBudget(100_000_000);
-    const signedTx = await tx.sign({
-      signer: keypair,
-      client: suiClient,
-    });
-
-    const { tx: initTx, digest, events } = await executeTx(signedTx);
-    initTx.objectChanges?.map((change) => {
-      if (
-        change.type === "created" &&
-        change.objectType.includes("prover::Circuit") &&
-        !change.objectType.includes("display")
-      ) {
-        circuitID = change.objectId;
-      }
-    });
-    console.log("Created circuit:", {
-      initTx,
-      objectChanges: initTx.objectChanges,
-      digest,
-      events,
-      circuitID,
-    });
-    const waitResult = await waitTx(digest);
-    if (waitResult.errors) {
-      console.log(`Errors for tx ${digest}:`, waitResult.errors);
-    }
-    assert.ok(!waitResult.errors, "create circuit transaction failed");
-    assert.ok(circuitID, "circuit ID is not set");
-  });
-
-  it("should create tokens, pool and set public key", async () => {
-    if (!packageID) {
-      throw new Error("PACKAGE_ID is not set");
+    const CIRCUIT_VERIFICATION_KEY_HASH =
+      process.env.CIRCUIT_VERIFICATION_KEY_HASH!;
+    if (!CIRCUIT_VERIFICATION_KEY_HASH) {
+      throw new Error("CIRCUIT_VERIFICATION_KEY_HASH is not set");
     }
 
-    if (!dexID) {
-      throw new Error("DEX_ID is not set");
-    }
-
-    if (!circuitID) {
-      throw new Error("CIRCUIT_ID is not set");
+    const CIRCUIT_VERIFICATION_KEY_DATA =
+      process.env.CIRCUIT_VERIFICATION_KEY_DATA!;
+    if (!CIRCUIT_VERIFICATION_KEY_DATA) {
+      throw new Error("CIRCUIT_VERIFICATION_KEY_DATA is not set");
     }
 
     const { address, keypair } = await getKey({
@@ -178,34 +115,54 @@ describe("Deploy DEX contracts", async () => {
 
     dexObjects = createInitialState();
     const { baseToken, quoteToken, pool } = dexObjects;
+
     const tx = new Transaction();
 
-    const publicKeyArguments = [
-      tx.object(dexID),
-      tx.pure.vector("u8", validator.getPublicKey().toRawBytes()),
-      tx.pure.address(circuitID),
-    ];
-
-    tx.moveCall({
-      package: packageID,
-      module: "trade",
-      function: "set_public_key_and_circuit_package",
-      arguments: publicKeyArguments,
-    });
-
     /*
-            dex: &mut DEX,
-            publicKey: u256,
-            publicKeyBase58: String,
-            tokenId: u256,
-            token: String,
-            name: String,
-            description: String,
-            image: String,
+        public fun create_dex(
+            admin: &Admin,
+            public_key: vector<u8>,
+            // Circuit
+            circuit_name: String,
+            circuit_description: String,
+            circuit_package_da_hash: String,
+            circuit_verification_key_hash: u256,
+            circuit_verification_key_data: String,
+            // Token 1
+            base_token_publicKey: u256,
+            base_token_publicKeyBase58: String,
+            base_token_tokenId: u256,
+            base_token_token: String,
+            base_token_name: String,
+            base_token_description: String,
+            base_token_image: String,
+            // Token 2
+            quote_token_publicKey: u256,
+            quote_token_publicKeyBase58: String,
+            quote_token_tokenId: u256,
+            quote_token_token: String,
+            quote_token_name: String,
+            quote_token_description: String,
+            quote_token_image: String,
+            // Pool
+            pool_name: String,
+            pool_publicKey: u256,
+            pool_publicKeyBase58: String,
+            initial_price: u64,
+            clock: &Clock,
             ctx: &mut TxContext,
     */
-    const baseTokenArguments = [
-      tx.object(dexID),
+
+    const dexArguments = [
+      tx.object(adminID),
+      tx.pure.vector("u8", validator.getPublicKey().toRawBytes()),
+      // Circuit
+      tx.pure.string("DEX Circuit"),
+      tx.pure.string("DEX Rollup Circuits for Mina protocol"),
+      tx.pure.string(CIRCUIT_BLOB_ID),
+      tx.pure.u256(BigInt(CIRCUIT_VERIFICATION_KEY_HASH)),
+      tx.pure.string(CIRCUIT_VERIFICATION_KEY_DATA),
+      // Token 1
       tx.pure.u256(publicKeyToU256(baseToken.minaPublicKey)),
       tx.pure.string(baseToken.minaPublicKey),
       tx.pure.u256(TokenId.fromBase58(baseToken.tokenId).toBigInt()),
@@ -213,10 +170,7 @@ describe("Deploy DEX contracts", async () => {
       tx.pure.string(baseToken.name),
       tx.pure.string(baseToken.description),
       tx.pure.string(baseToken.image),
-    ];
-
-    const quoteTokenArguments = [
-      tx.object(dexID),
+      // Token 2
       tx.pure.u256(publicKeyToU256(quoteToken.minaPublicKey)),
       tx.pure.string(quoteToken.minaPublicKey),
       tx.pure.u256(TokenId.fromBase58(quoteToken.tokenId).toBigInt()),
@@ -224,54 +178,24 @@ describe("Deploy DEX contracts", async () => {
       tx.pure.string(quoteToken.name),
       tx.pure.string(quoteToken.description),
       tx.pure.string(quoteToken.image),
-    ];
-
-    tx.moveCall({
-      package: packageID,
-      module: "trade",
-      function: "create_token",
-      arguments: baseTokenArguments,
-    });
-
-    tx.moveCall({
-      package: packageID,
-      module: "trade",
-      function: "create_token",
-      arguments: quoteTokenArguments,
-    });
-
-    /*
-        public fun create_pool(
-            dex: &mut DEX,
-            clock: &Clock,
-            name: String,
-            publicKey: u256,
-            publicKeyBase58: String,
-            baseTokenId: u256,
-            quoteTokenId: u256,
-            ctx: &mut TxContext,
-    */
-
-    const poolArguments = [
-      tx.object(dexID),
-      tx.object(SUI_CLOCK_OBJECT_ID),
+      // Pool
       tx.pure.string(pool.name),
       tx.pure.u256(publicKeyToU256(pool.minaPublicKey)),
       tx.pure.string(pool.minaPublicKey),
-      tx.pure.u256(TokenId.fromBase58(pool.baseTokenId).toBigInt()),
-      tx.pure.u256(TokenId.fromBase58(pool.quoteTokenId).toBigInt()),
       tx.pure.u64(pool.lastPrice),
+      // Clock
+      tx.object(SUI_CLOCK_OBJECT_ID),
     ];
 
     tx.moveCall({
       package: packageID,
-      module: "trade",
-      function: "create_pool",
-      arguments: poolArguments,
+      module: "main",
+      function: "create_dex",
+      arguments: dexArguments,
     });
 
     tx.setSender(address);
-    tx.setGasBudget(100_000_000);
+    tx.setGasBudget(150_000_000);
     const signedTx = await tx.sign({
       signer: keypair,
       client: suiClient,
@@ -281,168 +205,33 @@ describe("Deploy DEX contracts", async () => {
     initTx.objectChanges?.map((change) => {
       if (
         change.type === "created" &&
-        change.objectType.includes("trade::Pool") &&
+        change.objectType.includes("main::DEX") &&
         !change.objectType.includes("display")
       ) {
-        poolID = change.objectId;
-      }
-      if (
-        change.type === "created" &&
-        change.objectType.includes("prover::Circuit") &&
-        !change.objectType.includes("display")
-      ) {
-        circuitID = change.objectId;
+        dexID = change.objectId;
       }
     });
-    console.log("Created initial state:", {
+    console.log("Created DEX:", {
       initTx,
       objectChanges: initTx.objectChanges,
       digest,
       events,
-      poolID,
-      circuitID,
+      dexID,
     });
     const waitResult = await waitTx(digest);
     if (waitResult.errors) {
       console.log(`Errors for tx ${digest}:`, waitResult.errors);
     }
-    assert.ok(!waitResult.errors, "publish transaction failed");
-    assert.ok(poolID, "pool ID is not set");
+    assert.ok(!waitResult.errors, "create DEX transaction failed");
+    assert.ok(dexID, "DEX ID is not set");
+    await updateConfig({
+      dex_package: packageID,
+      dex_object: dexID,
+      circuit_blob_id: CIRCUIT_BLOB_ID,
+      mina_chain: process.env.MINA_CHAIN,
+    });
   });
 
-  it("should create users", async () => {
-    if (!packageID) {
-      throw new Error("PACKAGE_ID is not set");
-    }
-
-    if (!dexID) {
-      throw new Error("DEX_ID is not set");
-    }
-
-    if (!poolID) {
-      throw new Error("POOL_ID is not set");
-    }
-
-    if (!dexObjects) {
-      throw new Error("DEX_OBJECTS is not set");
-    }
-
-    const { address, keypair } = await getKey({
-      secretKey: adminSecretKey,
-      name: "admin",
-    });
-
-    const { faucet, liquidityProvider, alice, bob } = dexObjects;
-    const tx = new Transaction();
-
-    /*
-        public fun create_account(
-            dex: &mut DEX,
-            pool: &mut Pool,
-            publicKey: u256,
-            publicKeyBase58: String,
-            role: String,
-            image: String,
-            name: String,
-            baseBalance: u64,
-            quoteBalance: u64,
-            ctx: &mut TxContext,
-    */
-
-    const faucetAccountArguments = [
-      tx.object(dexID),
-      tx.object(poolID),
-      tx.pure.u256(publicKeyToU256(faucet.minaPublicKey)),
-      tx.pure.string(faucet.minaPublicKey),
-      tx.pure.string(faucet.role),
-      tx.pure.string(faucet.image),
-      tx.pure.string(faucet.name),
-      tx.pure.u64(faucet.account.baseTokenBalance.amount),
-      tx.pure.u64(faucet.account.quoteTokenBalance.amount),
-    ];
-
-    tx.moveCall({
-      package: packageID,
-      module: "trade",
-      function: "create_account",
-      arguments: faucetAccountArguments,
-    });
-
-    const liquidityProviderAccountArguments = [
-      tx.object(dexID),
-      tx.object(poolID),
-      tx.pure.u256(publicKeyToU256(liquidityProvider.minaPublicKey)),
-      tx.pure.string(liquidityProvider.minaPublicKey),
-      tx.pure.string(liquidityProvider.role),
-      tx.pure.string(liquidityProvider.image),
-      tx.pure.string(liquidityProvider.name),
-      tx.pure.u64(liquidityProvider.account.baseTokenBalance.amount),
-      tx.pure.u64(liquidityProvider.account.quoteTokenBalance.amount),
-    ];
-
-    tx.moveCall({
-      package: packageID,
-      module: "trade",
-      function: "create_account",
-      arguments: liquidityProviderAccountArguments,
-    });
-
-    const aliceAccountArguments = [
-      tx.object(dexID),
-      tx.object(poolID),
-      tx.pure.u256(publicKeyToU256(alice.minaPublicKey)),
-      tx.pure.string(alice.minaPublicKey),
-      tx.pure.string(alice.role),
-      tx.pure.string(alice.image),
-      tx.pure.string(alice.name),
-      tx.pure.u64(alice.account.baseTokenBalance.amount),
-      tx.pure.u64(alice.account.quoteTokenBalance.amount),
-    ];
-
-    tx.moveCall({
-      package: packageID,
-      module: "trade",
-      function: "create_account",
-      arguments: aliceAccountArguments,
-    });
-
-    const bobAccountArguments = [
-      tx.object(dexID),
-      tx.object(poolID),
-      tx.pure.u256(publicKeyToU256(bob.minaPublicKey)),
-      tx.pure.string(bob.minaPublicKey),
-      tx.pure.string(bob.role),
-      tx.pure.string(bob.image),
-      tx.pure.string(bob.name),
-      tx.pure.u64(bob.account.baseTokenBalance.amount),
-      tx.pure.u64(bob.account.quoteTokenBalance.amount),
-    ];
-
-    tx.moveCall({
-      package: packageID,
-      module: "trade",
-      function: "create_account",
-      arguments: bobAccountArguments,
-    });
-
-    tx.setSender(address);
-    tx.setGasBudget(100_000_000);
-    const signedTx = await tx.sign({
-      signer: keypair,
-      client: suiClient,
-    });
-
-    const { digest, events } = await executeTx(signedTx);
-    console.log("Created users:", {
-      digest,
-      events,
-    });
-    const waitResult = await waitTx(digest);
-    if (waitResult.errors) {
-      console.log(`Errors for tx ${digest}:`, waitResult.errors);
-    }
-    assert.ok(!waitResult.errors, "init transaction failed");
-  });
   it("should save object IDs to .env.contracts", async () => {
     const CIRCUIT_BLOB_ID = process.env.CIRCUIT_BLOB_ID!;
     if (!CIRCUIT_BLOB_ID) {
@@ -456,9 +245,8 @@ MINA_CHAIN=${process.env.MINA_CHAIN}
 PACKAGE_ID=${packageID}
 
 # Object IDs
+ADMIN_ID=${adminID}
 DEX_ID=${dexID}
-POOL_ID=${poolID}
-CIRCUIT_ID=${circuitID}
 CIRCUIT_BLOB_ID=${CIRCUIT_BLOB_ID}
 `;
     await writeFile(".env.public", envContent);

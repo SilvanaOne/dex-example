@@ -3,6 +3,8 @@ module dex::user;
 use dex::mina::{MinaBalance, create_mina_balance, get_balance_data};
 use dex::order::{Order, create_order, get_order};
 use std::string::String;
+use sui::display;
+use sui::package;
 
 public struct User has key, store {
     id: UID,
@@ -19,6 +21,42 @@ public struct UserTradingAccount has copy, drop, store {
     bid: Order,
     ask: Order,
     nonce: u64,
+}
+
+public struct USER has drop {}
+
+fun init(otw: USER, ctx: &mut TxContext) {
+    let publisher = package::claim(otw, ctx);
+
+    let user_keys = vector[
+        b"name".to_string(),
+        b"link".to_string(),
+        b"image_url".to_string(),
+        b"thumbnail_url".to_string(),
+        b"description".to_string(),
+        b"project_url".to_string(),
+        b"creator".to_string(),
+    ];
+
+    let user_values = vector[
+        b"{name}".to_string(),
+        b"https://minascan.io/devnet/account/{publicKeyBase58}".to_string(),
+        b"{image}".to_string(),
+        b"{image}".to_string(),
+        b"{role}".to_string(),
+        b"https://dex.silvana.dev".to_string(),
+        b"DFST".to_string(),
+    ];
+    let mut display_user = display::new_with_fields<User>(
+        &publisher,
+        user_keys,
+        user_values,
+        ctx,
+    );
+
+    display_user.update_version();
+    transfer::public_transfer(publisher, ctx.sender());
+    transfer::public_transfer(display_user, ctx.sender());
 }
 
 public(package) fun create_user(

@@ -13,8 +13,8 @@ import {
   SuiEventFilter,
 } from "@mysten/sui/client";
 
-const poolID = process.env.POOL_ID;
 const packageID = process.env.PACKAGE_ID;
+const dexID = process.env.DEX_ID;
 
 export async function fetchSuiObject(objectID: string) {
   console.time("getObject");
@@ -31,21 +31,16 @@ export async function fetchSuiObject(objectID: string) {
   return data;
 }
 
-export async function fetchDexPool() {
-  if (!poolID) {
-    throw new Error("POOL_ID is not set");
-  }
-  const data = await fetchSuiObject(poolID);
-
-  return data;
-}
-
 export async function fetchDexAccount(
   address: string
 ): Promise<UserTradingAccount | undefined> {
+  if (!dexID) {
+    throw new Error("DEX_ID is not set");
+  }
   const publicKey = publicKeyToU256(address).toString();
-  const poolData = (await fetchDexPool()) as any;
-  const accounts = poolData?.data?.content?.fields?.accounts?.fields.contents;
+  const poolData = (await fetchSuiObject(dexID)) as any;
+  const accounts =
+    poolData?.data?.content?.fields?.pool?.fields?.accounts?.fields.contents;
   if (accounts && Array.isArray(accounts)) {
     const account = accounts.find((item) => item?.fields?.key === publicKey);
     if (account) {

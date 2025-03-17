@@ -5,7 +5,7 @@ export async function signDexFields(params: {
   minaPrivateKey: string;
   poolPublicKey: string;
   operation: Operation;
-  nonce: number;
+  nonce: bigint;
   baseTokenAmount?: bigint; // u64
   quoteTokenAmount?: bigint; // u64
   price?: bigint; // u64

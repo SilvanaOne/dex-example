@@ -1,6 +1,6 @@
 module dex::main;
 
-use dex::admin::{Admin, create_admin, get_admin_address};
+use dex::admin::{Admin, get_admin_address};
 use dex::pool::{Self, Pool};
 use dex::prover::{
     Circuit,
@@ -10,8 +10,8 @@ use dex::prover::{
     request_proof_calculation,
     ProofCalculation
 };
-use dex::token::{Self, Token};
-use dex::user::{User, UserTradingAccount};
+use dex::token;
+use dex::user::UserTradingAccount;
 use std::string::String;
 use sui::clock::{timestamp_ms, Clock};
 use sui::display;
@@ -104,8 +104,6 @@ public struct DEXCreateEvent has copy, drop {
 public struct MAIN has drop {}
 
 fun init(otw: MAIN, ctx: &mut TxContext) {
-    create_admin(ctx);
-
     let publisher = package::claim(otw, ctx);
 
     let dex_keys = vector[
@@ -125,73 +123,6 @@ fun init(otw: MAIN, ctx: &mut TxContext) {
         &publisher,
         dex_keys,
         dex_values,
-        ctx,
-    );
-
-    let pool_keys = vector[
-        b"name".to_string(),
-        b"link".to_string(),
-        b"project_url".to_string(),
-        b"creator".to_string(),
-    ];
-
-    let pool_values = vector[
-        b"{name}".to_string(),
-        b"https://minascan.io/devnet/account/{publicKeyBase58}".to_string(),
-        b"https://dex.silvana.dev".to_string(),
-        b"DFST".to_string(),
-    ];
-
-    let mut display_pool = display::new_with_fields<Pool>(
-        &publisher,
-        pool_keys,
-        pool_values,
-        ctx,
-    );
-
-    let token_keys = vector[
-        b"name".to_string(),
-        b"link".to_string(),
-        b"project_url".to_string(),
-        b"creator".to_string(),
-    ];
-
-    let token_values = vector[
-        b"{name}".to_string(),
-        b"https://minascan.io/devnet/account/{publicKeyBase58}".to_string(),
-        b"https://dex.silvana.dev".to_string(),
-        b"DFST".to_string(),
-    ];
-    let mut display_token = display::new_with_fields<Token>(
-        &publisher,
-        token_keys,
-        token_values,
-        ctx,
-    );
-
-    let user_keys = vector[
-        b"name".to_string(),
-        b"link".to_string(),
-        b"image_url".to_string(),
-        b"thumbnail_url".to_string(),
-        b"description".to_string(),
-        b"project_url".to_string(),
-        b"creator".to_string(),
-    ];
-
-    let user_values = vector[
-        b"{name}".to_string(),
-        b"https://minascan.io/devnet/account/{publicKeyBase58}".to_string(),
-        b"{image}".to_string(),
-        b"{image}".to_string(),
-        b"{role}".to_string(),
-        b"https://dex.silvana.dev".to_string(),
-        b"DFST".to_string(),
-    ];
-    let mut display_user = display::new_with_fields<User>(
-        &publisher,
-        user_keys,
-        user_values,
         ctx,
     );
 
@@ -222,15 +153,9 @@ fun init(otw: MAIN, ctx: &mut TxContext) {
     );
 
     display_dex.update_version();
-    display_pool.update_version();
-    display_token.update_version();
-    display_user.update_version();
     display_block.update_version();
     transfer::public_transfer(publisher, ctx.sender());
     transfer::public_transfer(display_dex, ctx.sender());
-    transfer::public_transfer(display_pool, ctx.sender());
-    transfer::public_transfer(display_token, ctx.sender());
-    transfer::public_transfer(display_user, ctx.sender());
     transfer::public_transfer(display_block, ctx.sender());
 }
 
@@ -473,6 +398,7 @@ public fun create_block(admin: &Admin, dex: &mut DEX, clock: &Clock, ctx: &mut T
     dex.last_block_address = address;
     dex.previous_block_timestamp = timestamp;
     dex.previous_block_actions_state = dex.actionsState;
+    dex.previous_block_sequence = dex.sequence - 1;
     object_table::add(&mut dex.proof_calculations, block_number, proof_calculation);
 }
 

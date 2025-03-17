@@ -26,7 +26,7 @@ export async function wrapMinaSignature(params: {
   minaPublicKey: string;
   poolPublicKey: string;
   operation: Operation;
-  nonce: number;
+  nonce: bigint;
   baseTokenAmount?: bigint; // u64
   quoteTokenAmount?: bigint; // u64
   price?: bigint; // u64

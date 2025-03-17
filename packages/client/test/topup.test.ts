@@ -21,7 +21,6 @@ if (!faucetSecretKey) {
 
 const packageID = process.env.PACKAGE_ID;
 const dexID = process.env.DEX_ID;
-const poolID = process.env.POOL_ID;
 let dexObjects: DexObjects | undefined = undefined;
 
 describe("Topup DEX users", async () => {
@@ -57,10 +56,6 @@ describe("Topup DEX users", async () => {
 
     if (!dexID) {
       throw new Error("DEX_ID is not set");
-    }
-
-    if (!poolID) {
-      throw new Error("POOL_ID is not set");
     }
 
     if (!dexObjects) {
@@ -112,9 +107,20 @@ describe("Topup DEX users", async () => {
       });
       nonce++;
 
+      /*
+          public fun transfer(
+              dex: &mut DEX,
+              senderPublicKey: u256,
+              receiverPublicKey: u256,
+              baseTokenAmount: u64,
+              quoteTokenAmount: u64,
+              senderSignature_r: u256,
+              senderSignature_s: u256,
+              validatorSignature: vector<u8>,
+      */
+
       const userTopupArguments = [
         tx.object(dexID),
-        tx.object(poolID),
         tx.pure.u256(publicKeyToU256(faucet.minaPublicKey)),
         tx.pure.u256(publicKeyToU256(user.minaPublicKey)),
         tx.pure.u64(baseTokenAmount),
@@ -126,7 +132,7 @@ describe("Topup DEX users", async () => {
 
       tx.moveCall({
         package: packageID,
-        module: "trade",
+        module: "transactions",
         function: "transfer",
         arguments: userTopupArguments,
       });

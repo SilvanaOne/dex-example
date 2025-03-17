@@ -43,6 +43,13 @@ export interface Pool {
   accounts: Record<string, UserTradingAccount>;
 }
 
+export interface BlockState {
+  id: string;
+  name: string;
+  block_number: number;
+  state: Record<string, UserTradingAccount>;
+}
+
 export interface Block {
   name: string;
   block_number: number;
@@ -54,10 +61,10 @@ export interface Block {
   end_action_state: number[];
   state_data_availability: string | null;
   proof_data_availability: string | null;
-  block_state: string;
   previous_block_address: string;
   mina_tx_hash: string | null;
   mina_tx_included_in_block: number | null;
+  block_state: BlockState;
 }
 
 export interface RawBlock {
@@ -74,13 +81,29 @@ export interface RawBlock {
   end_action_state: number[];
   state_data_availability: string | null;
   proof_data_availability: string | null;
-  block_state: string;
   previous_block_address: string;
   mina_tx_hash: string | null;
   mina_tx_included_in_block: string | null;
+  block_state: {
+    fields: {
+      id: {
+        id: string;
+      };
+      name: string;
+      block_number: string;
+      state: {
+        fields: {
+          contents: object[];
+        };
+      };
+    };
+  };
 }
 
 export function rawBlockToBlock(raw: RawBlock): Block {
+  const blockState = raw.block_state?.fields?.state?.fields?.contents;
+  if (!blockState || !Array.isArray(blockState))
+    throw new Error("Invalid block state");
   return {
     name: raw.name,
     block_number: Number(raw.block_number),
@@ -92,12 +115,53 @@ export function rawBlockToBlock(raw: RawBlock): Block {
     end_action_state: raw.end_action_state,
     state_data_availability: raw.state_data_availability,
     proof_data_availability: raw.proof_data_availability,
-    block_state: raw.block_state,
     previous_block_address: raw.previous_block_address,
     mina_tx_hash: raw.mina_tx_hash,
     mina_tx_included_in_block: raw.mina_tx_included_in_block
       ? Number(raw.mina_tx_included_in_block)
       : null,
+    block_state: {
+      id: raw.block_state?.fields?.id?.id,
+      name: raw.block_state?.fields?.name,
+      block_number: Number(raw.block_state?.fields?.block_number),
+      state: Object.fromEntries(
+        blockState.map((item: any) => {
+          if (!item?.fields?.key || typeof item?.fields?.key !== "string") {
+            throw new Error("block state key is not a string");
+          }
+          const key = u256ToPublicKey(BigInt(item.fields.key)).toBase58();
+          const value = item.fields.value.fields;
+          const account: UserTradingAccount = {
+            baseTokenBalance: {
+              amount: BigInt(value.baseTokenBalance.fields.amount),
+              stakedAmount: BigInt(value.baseTokenBalance.fields.stakedAmount),
+              borrowedAmount: BigInt(
+                value.baseTokenBalance.fields.borrowedAmount
+              ),
+            },
+            quoteTokenBalance: {
+              amount: BigInt(value.quoteTokenBalance.fields.amount),
+              stakedAmount: BigInt(value.quoteTokenBalance.fields.stakedAmount),
+              borrowedAmount: BigInt(
+                value.quoteTokenBalance.fields.borrowedAmount
+              ),
+            },
+            bid: {
+              amount: BigInt(value.bid.fields.amount),
+              price: BigInt(value.bid.fields.price),
+              isSome: value.bid.fields.isSome,
+            },
+            ask: {
+              amount: BigInt(value.ask.fields.amount),
+              price: BigInt(value.ask.fields.price),
+              isSome: value.ask.fields.isSome,
+            },
+            nonce: BigInt(value.nonce),
+          };
+          return [key, account];
+        })
+      ),
+    },
   };
 }
 
@@ -334,18 +398,10 @@ export function convertRawOperationEvent(
   };
 }
 
-export interface BlockState {
-  name: string;
-  blockNumber: number;
-  state: Record<string, UserTradingAccount>;
-}
-
 export interface BlockData {
   blockNumber: number;
   blockID: string;
-  blockStateID: string;
   sequences: number[];
   block: Block;
-  state: BlockState;
   events: OperationEvent[];
 }

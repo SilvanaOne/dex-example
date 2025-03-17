@@ -23,7 +23,6 @@ if (!aliceSecretKey || !bobSecretKey || !botSecretKey) {
 
 const packageID = process.env.PACKAGE_ID;
 const dexID = process.env.DEX_ID;
-const poolID = process.env.POOL_ID;
 let dexObjects: DexObjects | undefined = undefined;
 const traders: {
   name: string;
@@ -74,10 +73,6 @@ describe("Trade", async () => {
 
     if (!dexID) {
       throw new Error("DEX_ID is not set");
-    }
-
-    if (!poolID) {
-      throw new Error("POOL_ID is not set");
     }
 
     if (!dexObjects) {
@@ -149,7 +144,6 @@ describe("Trade", async () => {
         /*
           public fun bid(
               dex: &mut DEX,
-              pool: &mut Pool,
               publicKey: u256,
               amount: u64,
               price: u64,
@@ -161,7 +155,6 @@ describe("Trade", async () => {
 
         const bidArguments = [
           tx.object(dexID),
-          tx.object(poolID),
           tx.pure.u256(publicKeyToU256(trader.user.minaPublicKey)),
           tx.pure.u64(amount),
           tx.pure.u64(trader.bid),
@@ -172,7 +165,7 @@ describe("Trade", async () => {
 
         tx.moveCall({
           package: packageID,
-          module: "trade",
+          module: "transactions",
           function: "bid",
           arguments: bidArguments,
         });
@@ -228,7 +221,6 @@ describe("Trade", async () => {
 
         const askArguments = [
           tx.object(dexID),
-          tx.object(poolID),
           tx.pure.u256(publicKeyToU256(trader.user.minaPublicKey)),
           tx.pure.u64(amount),
           tx.pure.u64(trader.ask),
@@ -239,7 +231,7 @@ describe("Trade", async () => {
 
         tx.moveCall({
           package: packageID,
-          module: "trade",
+          module: "transactions",
           function: "ask",
           arguments: askArguments,
         });
@@ -280,10 +272,6 @@ describe("Trade", async () => {
       throw new Error("DEX_ID is not set");
     }
 
-    if (!poolID) {
-      throw new Error("POOL_ID is not set");
-    }
-
     if (!dexObjects) {
       throw new Error("DEX_OBJECTS is not set");
     }
@@ -308,7 +296,6 @@ describe("Trade", async () => {
 
     const tradeArguments = [
       tx.object(dexID),
-      tx.object(poolID),
       tx.pure.u256(publicKeyToU256(bob.minaPublicKey)),
       tx.pure.u256(publicKeyToU256(alice.minaPublicKey)),
       tx.pure.u64(amount),
@@ -317,7 +304,7 @@ describe("Trade", async () => {
 
     tx.moveCall({
       package: packageID,
-      module: "trade",
+      module: "transactions",
       function: "trade",
       arguments: tradeArguments,
     });

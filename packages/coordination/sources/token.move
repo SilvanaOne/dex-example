@@ -2,7 +2,9 @@ module dex::token;
 
 use dex::admin::{Admin, get_admin_address};
 use std::string::String;
+use sui::display;
 use sui::event;
+use sui::package;
 
 public struct Token has key, store {
     id: UID,
@@ -24,6 +26,36 @@ public struct TokenCreateEvent has copy, drop {
     name: String,
     description: String,
     image: String,
+}
+
+public struct TOKEN has drop {}
+
+fun init(otw: TOKEN, ctx: &mut TxContext) {
+    let publisher = package::claim(otw, ctx);
+
+    let token_keys = vector[
+        b"name".to_string(),
+        b"link".to_string(),
+        b"project_url".to_string(),
+        b"creator".to_string(),
+    ];
+
+    let token_values = vector[
+        b"{name}".to_string(),
+        b"https://minascan.io/devnet/account/{publicKeyBase58}".to_string(),
+        b"https://dex.silvana.dev".to_string(),
+        b"DFST".to_string(),
+    ];
+    let mut display_token = display::new_with_fields<Token>(
+        &publisher,
+        token_keys,
+        token_values,
+        ctx,
+    );
+
+    display_token.update_version();
+    transfer::public_transfer(publisher, ctx.sender());
+    transfer::public_transfer(display_token, ctx.sender());
 }
 
 #[error]

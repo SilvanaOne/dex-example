@@ -5,7 +5,9 @@ use dex::token::{Token, TokenCreateEvent};
 use dex::user::UserTradingAccount;
 use std::string::String;
 use sui::clock::{timestamp_ms, Clock};
+use sui::display;
 use sui::event;
+use sui::package;
 use sui::vec_map::{VecMap, empty};
 
 public struct Pool has key, store {
@@ -27,6 +29,37 @@ public struct PoolCreateEvent has copy, drop {
     base_token: TokenCreateEvent,
     quote_token: TokenCreateEvent,
     created_at: u64,
+}
+
+public struct POOL has drop {}
+
+fun init(otw: POOL, ctx: &mut TxContext) {
+    let publisher = package::claim(otw, ctx);
+
+    let pool_keys = vector[
+        b"name".to_string(),
+        b"link".to_string(),
+        b"project_url".to_string(),
+        b"creator".to_string(),
+    ];
+
+    let pool_values = vector[
+        b"{name}".to_string(),
+        b"https://minascan.io/devnet/account/{publicKeyBase58}".to_string(),
+        b"https://dex.silvana.dev".to_string(),
+        b"DFST".to_string(),
+    ];
+
+    let mut display_pool = display::new_with_fields<Pool>(
+        &publisher,
+        pool_keys,
+        pool_values,
+        ctx,
+    );
+
+    display_pool.update_version();
+    transfer::public_transfer(publisher, ctx.sender());
+    transfer::public_transfer(display_pool, ctx.sender());
 }
 
 #[error]

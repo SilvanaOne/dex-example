@@ -1,6 +1,8 @@
 module dex::admin;
 
+use sui::display;
 use sui::event;
+use sui::package;
 
 public struct Admin has key {
     id: UID,
@@ -12,7 +14,9 @@ public struct AdminCreateEvent has copy, drop {
     admin: address,
 }
 
-public(package) fun create_admin(ctx: &mut TxContext) {
+public struct ADMIN has drop {}
+
+fun init(otw: ADMIN, ctx: &mut TxContext) {
     let admin = Admin {
         id: object::new(ctx),
         address: ctx.sender(),
@@ -22,6 +26,31 @@ public(package) fun create_admin(ctx: &mut TxContext) {
         admin: ctx.sender(),
     });
     transfer::transfer(admin, ctx.sender());
+
+    let publisher = package::claim(otw, ctx);
+
+    let admin_keys = vector[
+        b"name".to_string(),
+        b"project_url".to_string(),
+        b"creator".to_string(),
+    ];
+
+    let admin_values = vector[
+        b"Silvana DEX Admin".to_string(),
+        b"https://dex.silvana.dev".to_string(),
+        b"DFST".to_string(),
+    ];
+
+    let mut display_admin = display::new_with_fields<Admin>(
+        &publisher,
+        admin_keys,
+        admin_values,
+        ctx,
+    );
+
+    display_admin.update_version();
+    transfer::public_transfer(publisher, ctx.sender());
+    transfer::public_transfer(display_admin, ctx.sender());
 }
 
 public fun get_admin_address(admin: &Admin): address {
