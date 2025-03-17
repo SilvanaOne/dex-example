@@ -7,6 +7,7 @@ import {
   Bool,
   SelfProof,
   Struct,
+  JsonProof,
 } from "o1js";
 import {
   RollupDEXState,
@@ -24,8 +25,12 @@ import {
   TransferAuxiliaryOutput,
 } from "./provable-types.js";
 import { mulDiv } from "./div.js";
-import { Operation } from "../types.js";
+import { Operation, UserTradingAccount } from "../types.js";
 import { getMinaSignatureData } from "./signature.js";
+import {
+  serializeIndexedMap,
+  deserializeIndexedMerkleMap,
+} from "@silvana-one/storage";
 
 export const DEXProgram = ZkProgram({
   name: "DEXProgram",
@@ -409,3 +414,81 @@ export const DEXProgram = ZkProgram({
 });
 
 export class DEXProof extends ZkProgram.Proof(DEXProgram) {}
+
+export class SequenceState {
+  poolPublicKey: string;
+  blockNumber: number;
+  sequence: number;
+  dexState: RollupDEXState;
+  map: DEXMap;
+  accounts: Record<string, RollupUserTradingAccount>;
+  dexProof?: DEXProof;
+
+  constructor(params: {
+    poolPublicKey: string;
+    blockNumber: number;
+    sequence: number;
+    dexState: RollupDEXState;
+    map: DEXMap;
+    accounts: Record<string, RollupUserTradingAccount>;
+    dexProof?: DEXProof;
+  }) {
+    this.poolPublicKey = params.poolPublicKey;
+    this.blockNumber = params.blockNumber;
+    this.sequence = params.sequence;
+    this.dexState = params.dexState;
+    this.map = params.map;
+    this.accounts = params.accounts;
+    this.dexProof = params.dexProof;
+  }
+
+  toJSON(): string {
+    return JSON.stringify(
+      {
+        poolPublicKey: this.poolPublicKey,
+        blockNumber: this.blockNumber,
+        sequence: this.sequence,
+        dexState: this.dexState.toRollupData(),
+        map: serializeIndexedMap(this.map),
+        accounts: Object.entries(this.accounts).map(([key, value]) => ({
+          key,
+          value: value.toAccountData(),
+        })),
+        dexProof: this.dexProof?.toJSON(),
+      },
+      (_, value) =>
+        typeof value === "bigint" ? value.toString() + "n" : value,
+      2
+    );
+  }
+
+  static async fromJSON(str: string): Promise<SequenceState> {
+    const data = JSON.parse(str, (key, value) =>
+      typeof value === "string" && value.endsWith("n") && key !== "proof"
+        ? BigInt(value.slice(0, -1))
+        : value
+    );
+    const dexProof: DEXProof | undefined = data.dexProof
+      ? ((await DEXProof.fromJSON(data.dexProof as JsonProof)) as DEXProof)
+      : undefined;
+    return new SequenceState({
+      poolPublicKey: data.poolPublicKey,
+      blockNumber: data.blockNumber,
+      sequence: data.sequence,
+      dexState: RollupDEXState.fromRollupData(data.dexState),
+      map: deserializeIndexedMerkleMap({
+        serializedIndexedMap: data.map,
+        type: DEXMap,
+      }) as DEXMap,
+      accounts: Object.fromEntries(
+        data.accounts.map(
+          (account: { key: string; value: UserTradingAccount }) => [
+            account.key,
+            RollupUserTradingAccount.fromAccountData(account.value),
+          ]
+        )
+      ),
+      dexProof,
+    });
+  }
+}

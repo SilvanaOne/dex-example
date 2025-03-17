@@ -1,4 +1,8 @@
 import { u256ToPublicKey } from "./public-key.js";
+import {
+  serializeIndexedMap,
+  IndexedMapSerialized,
+} from "@silvana-one/storage";
 
 export const DEX_SIGNATURE_CONTEXT = 7738487874684489969637964886483n;
 
@@ -15,6 +19,17 @@ export enum Operation {
   MERGE = 100,
   SETTLE = 101,
 }
+
+export const OperationNames: { [key: number]: string } = {
+  0: "not_found",
+  1: "OperationCreateAccount",
+  2: "OperationBid",
+  3: "OperationAsk",
+  4: "OperationTrade",
+  5: "OperationTransfer",
+  100: "OperationMerge",
+  101: "OperationSettle",
+};
 
 export interface MinaSignature {
   r: bigint;
@@ -47,12 +62,14 @@ export interface BlockState {
   id: string;
   name: string;
   block_number: number;
+  block_sequence: number;
   state: Record<string, UserTradingAccount>;
 }
 
 export interface Block {
   name: string;
   block_number: number;
+  block_sequence: number;
   timestamp: number;
   time_since_last_block: number;
   number_of_transactions: number;
@@ -73,6 +90,7 @@ export interface RawBlock {
   };
   name: string;
   block_number: string;
+  block_sequence: string;
   timestamp: string;
   time_since_last_block: string;
   number_of_transactions: string;
@@ -91,6 +109,7 @@ export interface RawBlock {
       };
       name: string;
       block_number: string;
+      block_sequence: string;
       state: {
         fields: {
           contents: object[];
@@ -107,6 +126,7 @@ export function rawBlockToBlock(raw: RawBlock): Block {
   return {
     name: raw.name,
     block_number: Number(raw.block_number),
+    block_sequence: Number(raw.block_sequence),
     timestamp: Number(raw.timestamp),
     time_since_last_block: Number(raw.time_since_last_block),
     number_of_transactions: Number(raw.number_of_transactions),
@@ -124,6 +144,7 @@ export function rawBlockToBlock(raw: RawBlock): Block {
       id: raw.block_state?.fields?.id?.id,
       name: raw.block_state?.fields?.name,
       block_number: Number(raw.block_state?.fields?.block_number),
+      block_sequence: Number(raw.block_state?.fields?.block_sequence),
       state: Object.fromEntries(
         blockState.map((item: any) => {
           if (!item?.fields?.key || typeof item?.fields?.key !== "string") {
@@ -272,8 +293,7 @@ export interface OperationEvent {
     | "OperationBid"
     | "OperationAsk"
     | "OperationTrade"
-    | "OperationTransferBaseToken"
-    | "OperationTransferQuoteToken";
+    | "OperationTransfer";
   details:
     | ActionCreateAccount
     | ActionBid
@@ -289,8 +309,7 @@ export interface RawOperationEvent {
     | "OperationBid"
     | "OperationAsk"
     | "OperationTrade"
-    | "OperationTransferBaseToken"
-    | "OperationTransferQuoteToken";
+    | "OperationTransfer";
   details: any;
   operation: {
     actionState: number[];
@@ -404,4 +423,40 @@ export interface BlockData {
   sequences: number[];
   block: Block;
   events: OperationEvent[];
+  map?: IndexedMapSerialized;
+}
+
+export interface SequenceData {
+  sequence: number;
+  blockNumber: number;
+  operation: OperationData;
+  map: IndexedMapSerialized;
+}
+
+export enum ProofStatus {
+  NOT_STARTED = 0,
+  IN_PROGRESS = 1,
+  CALCULATED = 2,
+  USED = 3,
+  FAILED = 4,
+  REJECTED = 5,
+  ABANDONED = 6,
+}
+
+export interface ProofStatusData {
+  status: ProofStatus;
+  timestamp?: number;
+  number_of_retries: number;
+  is_merge_proof: boolean;
+  sequence?: number;
+  operation: Operation;
+  input1?: number[];
+  input2?: number[];
+  proof?: {
+    publicInput: bigint[];
+    publicOutput: bigint[];
+    maxProofsVerified: number; // should be 2
+    proofDataAvailabilityHash: string;
+  };
+  prover?: string; // Sui addresses are represented as strings
 }

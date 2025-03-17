@@ -1,0 +1,424 @@
+import {
+  UInt32,
+  Bool,
+  UInt64,
+  PrivateKey,
+  PublicKey,
+  Field,
+  Struct,
+  ZkProgram,
+  Gadgets,
+  Provable,
+  Cache,
+  Signature,
+  VerificationKey,
+  verify,
+  Mina,
+  AccountUpdate,
+  JsonProof,
+  Poseidon,
+} from "o1js";
+import { DEXProgram, DEXProof, SequenceState } from "./rollup.js";
+import { DEXContract } from "./contract.js";
+import {
+  Operation,
+  ActionCreateAccount,
+  ActionAsk,
+  ActionBid,
+  ActionTransfer,
+  ActionTrade,
+  Block,
+  BlockState,
+  DEXState,
+} from "../types.js";
+import {
+  RollupActionCreateAccount,
+  RollupActionAsk,
+  RollupActionBid,
+  RollupActionTransfer,
+  RollupActionTrade,
+  DEXMap,
+  RollupDEXState,
+  RollupUserTradingAccount,
+  RollupOrder,
+  RollupMinaBalance,
+} from "./provable-types.js";
+import {
+  fetchMinaAccount,
+  initBlockchain,
+  accountBalanceMina,
+  Memory,
+  sendTx,
+  pinJSON,
+} from "@silvana-one/mina-utils";
+import {
+  deserializeIndexedMerkleMap,
+  IndexedMapSerialized,
+} from "@silvana-one/storage";
+import { OperationEvent, OperationNames } from "../types.js";
+
+export async function calculateState(params: {
+  poolPublicKey: string;
+  blockNumber: number;
+  sequence: number;
+  serializedMap: IndexedMapSerialized;
+  block: Block;
+  sequences: number[];
+  operations: OperationEvent[];
+  prove?: boolean;
+}): Promise<SequenceState> {
+  const {
+    blockNumber,
+    block,
+    sequence,
+    sequences,
+    operations,
+    serializedMap,
+    poolPublicKey,
+    prove = false,
+  } = params;
+  const events = operations.sort(
+    (a, b) => a.operation.sequence - b.operation.sequence
+  );
+  let shouldCompile = false;
+  if (prove) {
+    if (!sequences.includes(sequence)) {
+      throw new Error("Prove sequence not found in sequences");
+    }
+    if (!events.find((e) => e.operation.sequence === sequence)) {
+      console.log("Prove sequence not found in events", {
+        sequence,
+        events: events.map((e) => e.operation.sequence),
+      });
+      throw new Error("Prove sequence not found in events");
+    }
+    shouldCompile = true;
+  }
+  // console.log(
+  //   "event sequences",
+  //   events.map((e) => e.operation.sequence)
+  // );
+  let map = deserializeIndexedMerkleMap({
+    serializedIndexedMap: serializedMap,
+    type: DEXMap,
+  });
+  if (!map) {
+    throw new Error("Map is not deserialized");
+  }
+  const dexState: DEXState = {
+    poolPublicKey,
+    root: map.root.toBigInt(),
+    length: map.length.toBigInt(),
+    actionState: 0n,
+    sequence: BigInt(block.block_sequence),
+  };
+  let rollupDexState = RollupDEXState.fromRollupData(dexState);
+  const accounts: Record<string, RollupUserTradingAccount> = {};
+  const reconcilationMap = new DEXMap();
+  // Iterate through records in block.block_state.state
+  if (!block.block_state || !block.block_state.state) {
+    throw new Error("No block state records found");
+  }
+  //console.log("Reconciling block state");
+  const stateRecords = block.block_state.state;
+
+  for (const [key, value] of Object.entries(stateRecords)) {
+    //console.log(`Processing account ${key}`);
+    const mapKey = Poseidon.hashPacked(PublicKey, PublicKey.fromBase58(key));
+    const account = RollupUserTradingAccount.fromAccountData(value);
+    const mapValue = account.hash();
+    reconcilationMap.set(mapKey, mapValue);
+    accounts[key] = account;
+  }
+  if (reconcilationMap.length.toBigInt() !== map.length.toBigInt()) {
+    console.log("Map length", map.length.toBigInt());
+    console.log(
+      "Reconciliation map length",
+      reconcilationMap.length.toBigInt()
+    );
+    throw new Error("Reconciliation map length does not match");
+  }
+  if (reconcilationMap.root.toBigInt() !== map.root.toBigInt()) {
+    console.log("Map root", map.root.toBigInt());
+    console.log("Reconciliation map root", reconcilationMap.root.toBigInt());
+    throw new Error("Reconciliation map root does not match");
+  }
+  let dexProof: DEXProof | undefined = undefined;
+  for (const event of events) {
+    const operation = event.operation;
+    const currentSequence = operation.sequence;
+
+    const shouldProve = prove && currentSequence === sequence && shouldCompile;
+    if (shouldProve) {
+      console.log("Processing event", {
+        sequence: currentSequence,
+        operation: operation.operation,
+        name: OperationNames[operation.operation],
+      });
+    }
+    if (shouldProve) {
+      await compileDEXProgram();
+    }
+    const {
+      dexState: newDexState,
+      map: newMap,
+      dexProof: newDexProof,
+    } = await processOperation({
+      event,
+      dexState: rollupDexState,
+      map,
+      accounts,
+      prove: shouldProve,
+    });
+    rollupDexState = newDexState;
+    map = newMap;
+    if (newDexProof) {
+      dexProof = newDexProof;
+    }
+  }
+
+  return new SequenceState({
+    poolPublicKey,
+    blockNumber,
+    sequence,
+    dexState: rollupDexState,
+    map,
+    accounts,
+    dexProof,
+  });
+}
+
+export async function processOperation(params: {
+  event: OperationEvent;
+  dexState: RollupDEXState;
+  map: DEXMap;
+  accounts: Record<string, RollupUserTradingAccount>;
+  prove?: boolean;
+}): Promise<{
+  dexState: RollupDEXState;
+  map: DEXMap;
+  dexProof?: DEXProof;
+}> {
+  const { event, dexState, map, accounts, prove = false } = params;
+  const operation = event.operation.operation;
+  const action = event.details;
+  let newMap: DEXMap | undefined = undefined;
+  let newDexState: RollupDEXState | undefined = undefined;
+  let dexProof: DEXProof | undefined = undefined;
+  switch (operation) {
+    case Operation.CREATE_ACCOUNT:
+      {
+        const rollupAction = RollupActionCreateAccount.fromAction(
+          action as ActionCreateAccount
+        );
+        if (prove) {
+          console.time("createAccount");
+          const { proof, auxiliaryOutput } = await DEXProgram.createAccount(
+            dexState,
+            map,
+            rollupAction
+          );
+          dexProof = proof;
+          newMap = auxiliaryOutput.map;
+          accounts[rollupAction.publicKey.toBase58()] = auxiliaryOutput.account;
+          newDexState = proof.publicOutput;
+          console.timeEnd("createAccount");
+        } else {
+          const { publicOutput, auxiliaryOutput } =
+            await DEXProgram.rawMethods.createAccount(
+              dexState,
+              map,
+              rollupAction
+            );
+          newMap = auxiliaryOutput.map;
+          accounts[rollupAction.publicKey.toBase58()] = auxiliaryOutput.account;
+          newDexState = publicOutput;
+        }
+      }
+      break;
+
+    case Operation.ASK:
+      {
+        const rollupAction = RollupActionAsk.fromAction(action as ActionAsk);
+        const account = accounts[rollupAction.userPublicKey.toBase58()];
+        if (prove) {
+          console.time("ask");
+          const { proof, auxiliaryOutput } = await DEXProgram.ask(
+            dexState,
+            map,
+            rollupAction,
+            account
+          );
+          dexProof = proof;
+          newMap = auxiliaryOutput.map;
+          newDexState = proof.publicOutput;
+          accounts[rollupAction.userPublicKey.toBase58()] =
+            auxiliaryOutput.account;
+          console.timeEnd("ask");
+        } else {
+          const { publicOutput, auxiliaryOutput } =
+            await DEXProgram.rawMethods.ask(
+              dexState,
+              map,
+              rollupAction,
+              account
+            );
+          newMap = auxiliaryOutput.map;
+          newDexState = publicOutput;
+          accounts[rollupAction.userPublicKey.toBase58()] =
+            auxiliaryOutput.account;
+        }
+      }
+      break;
+
+    case Operation.BID:
+      {
+        const rollupAction = RollupActionBid.fromAction(action as ActionBid);
+        const account = accounts[rollupAction.userPublicKey.toBase58()];
+        if (prove) {
+          console.time("bid");
+          const { proof, auxiliaryOutput } = await DEXProgram.bid(
+            dexState,
+            map,
+            rollupAction,
+            account
+          );
+          dexProof = proof;
+          newMap = auxiliaryOutput.map;
+          newDexState = proof.publicOutput;
+          accounts[rollupAction.userPublicKey.toBase58()] =
+            auxiliaryOutput.account;
+          console.timeEnd("bid");
+        } else {
+          const { publicOutput, auxiliaryOutput } =
+            await DEXProgram.rawMethods.bid(
+              dexState,
+              map,
+              rollupAction,
+              account
+            );
+          newMap = auxiliaryOutput.map;
+          newDexState = publicOutput;
+          accounts[rollupAction.userPublicKey.toBase58()] =
+            auxiliaryOutput.account;
+        }
+      }
+      break;
+    case Operation.TRADE:
+      {
+        const rollupAction = RollupActionTrade.fromAction(
+          action as ActionTrade
+        );
+        const buyerAccount = accounts[rollupAction.buyerPublicKey.toBase58()];
+        const sellerAccount = accounts[rollupAction.sellerPublicKey.toBase58()];
+        if (prove) {
+          console.time("trade");
+          const { proof, auxiliaryOutput } = await DEXProgram.trade(
+            dexState,
+            map,
+            rollupAction,
+            buyerAccount,
+            sellerAccount
+          );
+          dexProof = proof;
+          newMap = auxiliaryOutput.map;
+          newDexState = proof.publicOutput;
+          accounts[rollupAction.buyerPublicKey.toBase58()] =
+            auxiliaryOutput.buyer;
+          accounts[rollupAction.sellerPublicKey.toBase58()] =
+            auxiliaryOutput.seller;
+          console.timeEnd("trade");
+        } else {
+          const { publicOutput, auxiliaryOutput } =
+            await DEXProgram.rawMethods.trade(
+              dexState,
+              map,
+              rollupAction,
+              buyerAccount,
+              sellerAccount
+            );
+          newMap = auxiliaryOutput.map;
+          newDexState = publicOutput;
+          accounts[rollupAction.buyerPublicKey.toBase58()] =
+            auxiliaryOutput.buyer;
+          accounts[rollupAction.sellerPublicKey.toBase58()] =
+            auxiliaryOutput.seller;
+        }
+      }
+      break;
+    case Operation.TRANSFER:
+      {
+        const rollupAction = RollupActionTransfer.fromAction(
+          action as ActionTransfer
+        );
+        const senderAccount = accounts[rollupAction.senderPublicKey.toBase58()];
+        const receiverAccount =
+          accounts[rollupAction.receiverPublicKey.toBase58()];
+        if (prove) {
+          console.time("transfer");
+          const { proof, auxiliaryOutput } = await DEXProgram.transfer(
+            dexState,
+            map,
+            rollupAction,
+            senderAccount,
+            receiverAccount
+          );
+          dexProof = proof;
+          newMap = auxiliaryOutput.map;
+          newDexState = proof.publicOutput;
+          accounts[rollupAction.senderPublicKey.toBase58()] =
+            auxiliaryOutput.sender;
+          accounts[rollupAction.receiverPublicKey.toBase58()] =
+            auxiliaryOutput.receiver;
+          console.timeEnd("transfer");
+        } else {
+          const { publicOutput, auxiliaryOutput } =
+            await DEXProgram.rawMethods.transfer(
+              dexState,
+              map,
+              rollupAction,
+              senderAccount,
+              receiverAccount
+            );
+          newMap = auxiliaryOutput.map;
+          newDexState = publicOutput;
+          accounts[rollupAction.senderPublicKey.toBase58()] =
+            auxiliaryOutput.sender;
+          accounts[rollupAction.receiverPublicKey.toBase58()] =
+            auxiliaryOutput.receiver;
+        }
+      }
+      break;
+
+    default:
+      throw new Error(`Unsupported operation: ${operation}`);
+  }
+  return {
+    dexState: newDexState,
+    map: newMap,
+    dexProof: dexProof,
+  };
+}
+
+let vk: VerificationKey | undefined = undefined;
+
+async function compileDEXProgram() {
+  const vk_data = process.env.CIRCUIT_VERIFICATION_KEY_DATA;
+  const vk_hash = process.env.CIRCUIT_VERIFICATION_KEY_HASH;
+  if (!vk_data || !vk_hash) {
+    throw new Error(
+      "CIRCUIT_VERIFICATION_KEY_DATA or CIRCUIT_VERIFICATION_KEY_HASH is not set"
+    );
+  }
+  if (!vk) {
+    console.log("Compiling DEX Program");
+    console.time("Compiled DEX Program");
+    const cache = Cache.FileSystem("./cache");
+    const { verificationKey } = await DEXProgram.compile({ cache });
+    vk = verificationKey;
+    console.timeEnd("Compiled DEX Program");
+  }
+  if (vk_data !== vk.data || vk_hash !== vk.hash.toBigInt().toString()) {
+    throw new Error("Program verification key changed");
+  }
+}

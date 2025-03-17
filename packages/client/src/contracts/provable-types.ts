@@ -121,7 +121,9 @@ export class RollupUserTradingAccount extends Struct({
     return Poseidon.hashPacked(RollupUserTradingAccount, this);
   }
 
-  fromAccountData(accountData: UserTradingAccount): RollupUserTradingAccount {
+  static fromAccountData(
+    accountData: UserTradingAccount
+  ): RollupUserTradingAccount {
     return new RollupUserTradingAccount({
       baseTokenBalance: RollupMinaBalance.fromAccountData(
         accountData.baseTokenBalance
@@ -167,7 +169,7 @@ export class RollupActionCreateAccount extends Struct({
 }) {
   static fromAction(action: ActionCreateAccount): RollupActionCreateAccount {
     return new RollupActionCreateAccount({
-      publicKey: PublicKey.fromBase58(action.publicKey),
+      publicKey: PublicKey.fromBase58(action.publicKeyBase58),
       baseBalance: UInt64.from(action.baseBalance),
       quoteBalance: UInt64.from(action.quoteBalance),
     });

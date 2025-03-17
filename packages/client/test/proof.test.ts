@@ -5,15 +5,18 @@ import { readFile } from "node:fs/promises";
 import { DexObjects } from "./helpers/dex.js";
 import {
   fetchDexAccount,
+  fetchProofStatus,
   fetchSequenceData,
   fetchSuiObject,
 } from "../src/fetch.js";
-import { proveSequence } from "../src/prove.js";
+import { submitProof } from "../src/proof.js";
 import { SequenceState } from "../src/contracts/rollup.js";
-import { serializeIndexedMap } from "@silvana-one/storage";
 let dexObjects: DexObjects | undefined = undefined;
+let sequenceState: SequenceState | undefined = undefined;
+const blockNumber = 1;
+const sequence = 11;
 
-describe("Fetch DEX users accounts", async () => {
+describe("Submit DEX proof", async () => {
   it("should read configuration", async () => {
     const config = await readFile("./data/dex-objects.json", "utf-8");
     const { dexObjects: dexObjectsInternal } = JSON.parse(
@@ -37,28 +40,11 @@ describe("Fetch DEX users accounts", async () => {
     }
   });
 
-  it.skip("should fetch user", async () => {
-    const user = await fetchSuiObject(
-      "0x33ac72049a5c6c89cf022439c1b20e7857665911581bc9e53edbe565745d2e2d"
-    );
-    console.log("user", user);
-    console.log("user display", user.data?.display?.data);
-  });
-
-  it.skip("should fetch user accounts", async () => {
-    if (!dexObjects) {
-      throw new Error("DEX_OBJECTS is not set");
-    }
-    const { faucet, alice, bob, pool } = dexObjects;
-    const aliceAccount = await fetchDexAccount(alice.minaPublicKey);
-    console.log("alice account", aliceAccount);
-  });
-
-  it("should fetch sequence data", async () => {
+  it.skip("should fetch sequence data and calculate proof", async () => {
     console.time("fetchSequenceData");
     const sequenceData = await fetchSequenceData({
-      sequence: 11,
-      blockNumber: 1,
+      sequence,
+      blockNumber,
       prove: true,
     });
     //console.log("sequence data", sequenceData);
@@ -70,19 +56,25 @@ describe("Fetch DEX users accounts", async () => {
       throw new Error("Proof is not received");
     }
     console.timeEnd("fetchSequenceData");
-    const str = sequenceData.toJSON();
-    const state = await SequenceState.fromJSON(str);
-    assert.deepEqual(state.blockNumber, sequenceData.blockNumber);
-    assert.deepEqual(state.sequence, sequenceData.sequence);
-    assert.deepEqual(
-      state.dexState.toRollupData(),
-      sequenceData.dexState.toRollupData()
-    );
-    assert.deepEqual(
-      serializeIndexedMap(state.map),
-      serializeIndexedMap(sequenceData.map)
-    );
-    assert.deepEqual(state.accounts, sequenceData.accounts);
-    assert.deepEqual(state.dexProof?.toJSON(), sequenceData.dexProof?.toJSON());
+    //console.log("proof", proof.toJSON());
+    sequenceState = sequenceData;
+  });
+
+  it.skip("should submit proof", async () => {
+    if (!sequenceState) {
+      throw new Error("Sequence state is not received");
+    }
+
+    await submitProof({
+      state: sequenceState,
+    });
+  });
+
+  it("should fetch proof status", async () => {
+    const proofStatus = await fetchProofStatus({
+      sequence,
+      blockNumber,
+    });
+    console.log("proofStatus", proofStatus);
   });
 });

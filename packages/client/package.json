@@ -22,6 +22,7 @@
     "config": "npm run test test/config.test.ts",
     "faucet": "npm run test test/faucet.test.ts",
     "watch": "npm run test test/watch.test.ts",
+    "proof": "npm run test test/proof.test.ts",
     "start": "npm run deploy && npm run topup && npm run trade"
   },
   "node": {
@@ -37,6 +38,7 @@
   "dependencies": {
     "@mysten/sui": "^1.21.2",
     "@silvana-one/mina-utils": "^0.3.0",
+    "@silvana-one/storage": "^0.3.0",
     "o1js": "^2.3.0",
     "secp256k1": "^5.0.1"
   }

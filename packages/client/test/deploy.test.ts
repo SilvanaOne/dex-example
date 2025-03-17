@@ -12,17 +12,32 @@ import { TokenId } from "o1js";
 import { publicKeyToU256 } from "../src/public-key.js";
 import { createInitialState, DexObjects } from "./helpers/dex.js";
 import { updateConfig } from "../src/config.js";
+import { deployMinaContract } from "../src/deploy.js";
+import { BlockData } from "../src/types.js";
+import { fetchBlock } from "../src/fetch.js";
+import { DEXMap } from "../src/contracts/provable-types.js";
+import { serializeIndexedMap } from "@silvana-one/storage";
+import { saveToWalrus, readFromWalrus } from "../src/walrus.js";
 
 const userSecretKeys: string[] = [
   process.env.SECRET_KEY_1!,
   process.env.SECRET_KEY_2!,
   process.env.SECRET_KEY_3!,
 ];
+
+const adminAddress: string = process.env.ADMIN!;
 const adminSecretKey: string = process.env.ADMIN_SECRET_KEY!;
 const validatorSecretKey: string = process.env.VALIDATOR_SECRET_KEY!;
 const proverSecretKey: string = process.env.PROVER_SECRET_KEY!;
+const minaAdminSecretKey: string = process.env.TEST_ACCOUNT_1_PRIVATE_KEY!;
 
-if (!adminSecretKey || !validatorSecretKey || !proverSecretKey) {
+if (
+  !adminAddress ||
+  !adminSecretKey ||
+  !validatorSecretKey ||
+  !proverSecretKey ||
+  !minaAdminSecretKey
+) {
   throw new Error("Missing environment variables");
 }
 userSecretKeys.map((secretKey) => {
@@ -34,10 +49,36 @@ userSecretKeys.map((secretKey) => {
 let packageID: string | undefined = undefined;
 let adminID: string | undefined = undefined;
 let dexID: string | undefined = undefined;
+let blockID: string | undefined = undefined;
+let blockBlobId: string | undefined = undefined;
 let dexObjects: DexObjects | undefined = undefined;
+let minaContractHash: string | undefined = undefined;
+let minaContractAddress: string | undefined = undefined;
 
 describe("Deploy DEX contracts", async () => {
+  it("should deploy Mina DEX contract", async () => {
+    dexObjects = createInitialState();
+    const { pool } = dexObjects;
+    if (!pool || !pool.minaPrivateKey || !pool.minaPublicKey) {
+      throw new Error("Pool private key is not set");
+    }
+    minaContractAddress = pool.minaPublicKey;
+    const hash = await deployMinaContract({
+      adminPrivateKey: minaAdminSecretKey,
+      poolPrivateKey: pool.minaPrivateKey,
+    });
+    console.log("Mina DEX contract deployed:", {
+      hash,
+      address: minaContractAddress,
+    });
+    minaContractHash = hash;
+    assert.ok(minaContractHash, "Mina DEX contract hash is not set");
+    assert.ok(minaContractAddress, "Mina DEX contract address is not set");
+  });
   it("should publish SUI DEX package", async () => {
+    if (!minaContractHash) {
+      throw new Error("Mina DEX contract hash is not set");
+    }
     const { address, keypair } = await getKey({
       secretKey: adminSecretKey,
       name: "admin",
@@ -113,7 +154,10 @@ describe("Deploy DEX contracts", async () => {
       topup: false,
     });
 
-    dexObjects = createInitialState();
+    if (!dexObjects) {
+      throw new Error("DEX objects are not set");
+    }
+
     const { baseToken, quoteToken, pool } = dexObjects;
 
     const tx = new Transaction();
@@ -202,6 +246,7 @@ describe("Deploy DEX contracts", async () => {
     });
 
     const { tx: initTx, digest, events } = await executeTx(signedTx);
+    console.log("initTx", initTx.objectChanges);
     initTx.objectChanges?.map((change) => {
       if (
         change.type === "created" &&
@@ -210,6 +255,13 @@ describe("Deploy DEX contracts", async () => {
       ) {
         dexID = change.objectId;
       }
+      if (
+        change.type === "created" &&
+        change.objectType.includes("main::Block") &&
+        !change.objectType.includes("display")
+      ) {
+        blockID = change.objectId;
+      }
     });
     console.log("Created DEX:", {
       initTx,
@@ -217,6 +269,7 @@ describe("Deploy DEX contracts", async () => {
       digest,
       events,
       dexID,
+      blockID,
     });
     const waitResult = await waitTx(digest);
     if (waitResult.errors) {
@@ -228,8 +281,125 @@ describe("Deploy DEX contracts", async () => {
       dex_package: packageID,
       dex_object: dexID,
       circuit_blob_id: CIRCUIT_BLOB_ID,
-      mina_chain: process.env.MINA_CHAIN,
+      mina_chain: process.env.MINA_CHAIN || "devnet",
+      mina_contract: minaContractAddress,
+      mina_network: "mina",
     });
+  });
+
+  it("should save block and block state to Walrus", async () => {
+    if (!blockID) {
+      throw new Error("block ID is not set");
+    }
+
+    const blockData = await fetchBlock({ blockID });
+    const map = new DEXMap();
+    blockData.map = serializeIndexedMap(map);
+
+    blockBlobId = await saveToWalrus({
+      data: JSON.stringify(
+        blockData,
+        (_, value) =>
+          typeof value === "bigint" ? value.toString() + "n" : value,
+        2
+      ),
+      address: adminAddress,
+      numEpochs: 5,
+    });
+    console.log(`block blobId:`, blockBlobId);
+  });
+  it("should read block and block state from Walrus", async () => {
+    if (!blockBlobId) {
+      throw new Error("block blobId is not set");
+    }
+    const blockString = await readFromWalrus({
+      blobId: blockBlobId,
+    });
+    if (!blockString) {
+      throw new Error("block is not received");
+    }
+    const block = JSON.parse(blockString) as BlockData;
+    console.log(`block:`, block);
+    if (!block) {
+      throw new Error("block is not received");
+    }
+    await writeFile(`./data/block-${block.blockNumber}.json`, blockString);
+  });
+  it("should save block and block state blobIds to Sui", async () => {
+    if (!packageID) {
+      throw new Error("PACKAGE_ID is not set");
+    }
+
+    if (!dexID) {
+      throw new Error("DEX_ID is not set");
+    }
+
+    if (!blockID) {
+      throw new Error("BLOCK_ID is not set");
+    }
+
+    if (!blockBlobId) {
+      throw new Error("BLOCK_BLOB_ID is not set");
+    }
+
+    if (!minaContractHash) {
+      throw new Error("MINA_CONTRACT_HASH is not set");
+    }
+
+    const { address, keypair } = await getKey({
+      secretKey: adminSecretKey,
+      name: "admin",
+    });
+
+    /*
+    public fun update_block_state_data_availability(
+    block: &mut Block,
+    state_data_availability: String,
+    */
+
+    const tx = new Transaction();
+
+    const blockArguments = [tx.object(blockID), tx.pure.string(blockBlobId)];
+
+    tx.moveCall({
+      package: packageID,
+      module: "main",
+      function: "update_block_state_data_availability",
+      arguments: blockArguments,
+    });
+
+    const minaTxHashArguments = [
+      tx.object(blockID),
+      tx.pure.string(minaContractHash),
+    ];
+
+    tx.moveCall({
+      package: packageID,
+      module: "main",
+      function: "update_block_mina_tx_hash",
+      arguments: minaTxHashArguments,
+    });
+
+    tx.setSender(address);
+    tx.setGasBudget(100_000_000);
+
+    const signedTx = await tx.sign({
+      signer: keypair,
+      client: suiClient,
+    });
+
+    const { tx: updateBlockTx, digest, events } = await executeTx(signedTx);
+    console.log(`update block tx:`, {
+      digest,
+      events,
+    });
+    console.log(`tx objects:`, updateBlockTx.objectChanges);
+
+    const waitResult = await waitTx(digest);
+    if (waitResult.errors) {
+      console.log(`Errors for tx ${digest}:`, waitResult.errors);
+    }
+    assert.ok(!waitResult.errors, "update block transaction failed");
   });
 
   it("should save object IDs to .env.contracts", async () => {
@@ -248,6 +418,10 @@ PACKAGE_ID=${packageID}
 ADMIN_ID=${adminID}
 DEX_ID=${dexID}
 CIRCUIT_BLOB_ID=${CIRCUIT_BLOB_ID}
+
+# Mina DEX contract
+MINA_DEX_CONTRACT_ADDRESS=${minaContractAddress}
+MINA_DEX_CONTRACT_DEPLOY_TX_HASH=${minaContractHash}
 `;
     await writeFile(".env.public", envContent);
   });

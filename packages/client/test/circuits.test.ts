@@ -423,6 +423,18 @@ describe("Circuits", async () => {
     const cache = Cache.FileSystem("./cache");
     const { verificationKey } = await DEXProgram.compile({ cache });
     vk = verificationKey;
+    const vk_data = process.env.CIRCUIT_VERIFICATION_KEY_DATA;
+    const vk_hash = process.env.CIRCUIT_VERIFICATION_KEY_HASH;
+    if (
+      vk_data !== verificationKey.data ||
+      vk_hash !== verificationKey.hash.toBigInt().toString()
+    ) {
+      console.log("Program verification key changed");
+      console.log("vkProgram", {
+        hash: verificationKey.hash.toBigInt().toString(),
+        data: verificationKey.data,
+      });
+    }
     console.timeEnd("compiled DEX Program");
   });
 
@@ -432,6 +444,18 @@ describe("Circuits", async () => {
     const cache = Cache.FileSystem("./cache");
     const { verificationKey } = await DEXContract.compile({ cache });
     vkContract = verificationKey;
+    const vk_data = process.env.CONTRACT_VERIFICATION_KEY_DATA;
+    const vk_hash = process.env.CONTRACT_VERIFICATION_KEY_HASH;
+    if (
+      vk_data !== verificationKey.data ||
+      vk_hash !== verificationKey.hash.toBigInt().toString()
+    ) {
+      console.log("Contract verification key changed");
+      console.log("vkContract", {
+        hash: verificationKey.hash.toBigInt().toString(),
+        data: verificationKey.data,
+      });
+    }
     console.timeEnd("compiled DEX Contract");
   });
 

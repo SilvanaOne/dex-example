@@ -64,7 +64,7 @@ export async function readFromWalrus({
     return undefined;
   } else {
     const blob = await response.text();
-    console.log("blob", blob);
+    //console.log("blob", blob);
     return blob;
   }
 }

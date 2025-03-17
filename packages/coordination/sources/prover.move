@@ -18,14 +18,14 @@ public struct Circuit has key, store {
 
 #[allow(unused_field)]
 public struct Proof has copy, drop, store {
-    publicInput: vector<u256>,
-    publicOutput: vector<u256>,
-    maxProofsVerified: u8, // should be 2
-    proof: vector<u8>,
+    // publicInput: vector<u256>,
+    // publicOutput: vector<u256>,
+    // maxProofsVerified: u8, // should be 2
+    proofDataAvailabilityHash: String,
 }
 
-#[error]
-const EInvalidMaxProofsVerified: vector<u8> = b"Invalid max proofs verified";
+// #[error]
+// const EInvalidMaxProofsVerified: vector<u8> = b"Invalid max proofs verified";
 
 const PROOF_STATUS_NOT_STARTED: u8 = 0;
 const PROOF_STATUS_IN_PROGRESS: u8 = 1;
@@ -300,38 +300,38 @@ public fun proof_calculation_rejected(
 public fun submit_proof(
     proof_calculation: &mut ProofCalculation,
     sequences: vector<u64>, // should be sorted
-    publicInput: vector<u256>,
-    publicOutput: vector<u256>,
-    maxProofsVerified: u8, // should be 2
-    proof: vector<u8>,
+    // publicInput: vector<u256>,
+    // publicOutput: vector<u256>,
+    // maxProofsVerified: u8, // should be 2
+    proofDataAvailabilityHash: String,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
-    assert!(maxProofsVerified == 2, EInvalidMaxProofsVerified);
+    //assert!(maxProofsVerified == 2, EInvalidMaxProofsVerified);
     let status = sui::vec_map::get_mut(&mut proof_calculation.statuses, &sequences);
     let timestamp = sui::clock::timestamp_ms(clock);
     status.proof =
         option::some(Proof {
-            publicInput,
-            publicOutput,
-            maxProofsVerified,
-            proof,
+            // publicInput,
+            // publicOutput,
+            // maxProofsVerified,
+            proofDataAvailabilityHash,
         });
     status.status = PROOF_STATUS_CALCULATED;
     status.timestamp = option::some(timestamp);
     if (proof_calculation.sequences.is_some()) {
         if (sequences == *option::borrow(&proof_calculation.sequences)) {
-            proof_calculation.block_proof =
-                option::some(Proof {
-                    publicInput,
-                    publicOutput,
-                    maxProofsVerified,
-                    proof,
-                });
+            let proof = Proof {
+                // publicInput,
+                // publicOutput,
+                // maxProofsVerified,
+                proofDataAvailabilityHash,
+            };
+            proof_calculation.block_proof = option::some(proof);
             event::emit(ProofCalculationFinishedEvent {
                 block_number: proof_calculation.block_number,
                 sequences,
-                proof: *option::borrow(&status.proof),
+                proof,
                 timestamp,
             });
         }

@@ -3,6 +3,7 @@ module dex::main;
 use dex::admin::{Admin, get_admin_address};
 use dex::pool::{Self, Pool};
 use dex::prover::{
+    Self,
     Circuit,
     create_circuit,
     create_block_proof_calculation,
@@ -27,6 +28,7 @@ public struct BlockState has key, store {
     id: UID,
     name: String,
     block_number: u64,
+    block_sequence: u64,
     state: VecMap<u256, UserTradingAccount>,
 }
 
@@ -34,6 +36,7 @@ public struct Block has key, store {
     id: UID,
     name: String,
     block_number: u64,
+    block_sequence: u64,
     block_state: BlockState,
     block_state_address: address,
     timestamp: u64,
@@ -54,6 +57,7 @@ public struct BlockEvent has copy, drop {
     address: address,
     name: String,
     block_number: u64,
+    block_sequence: u64,
     timestamp: u64,
     block_state: address,
     previous_block_address: Option<address>,
@@ -255,6 +259,7 @@ public fun create_dex(
     let (block_address, block_timestamp) = create_block_internal(
         admin,
         0u64,
+        0u64,
         vector<u64>[],
         &pool,
         hash,
@@ -362,7 +367,11 @@ public(package) fun update_pool_last_price(dex: &mut DEX, last_price: u64) {
     pool::update_last_price(&mut dex.pool, last_price);
 }
 
+#[error]
+const ENoTransactions: vector<u8> = b"No new transactions";
+
 public fun create_block(admin: &Admin, dex: &mut DEX, clock: &Clock, ctx: &mut TxContext) {
+    assert!((dex.previous_block_sequence + 1) != dex.sequence, ENoTransactions);
     dex.only_admin(ctx);
     let mut block_number = dex.block_number;
     let mut sequences = vector<u64>[];
@@ -374,6 +383,7 @@ public fun create_block(admin: &Admin, dex: &mut DEX, clock: &Clock, ctx: &mut T
     let (address, timestamp) = create_block_internal(
         admin,
         block_number,
+        dex.sequence-1,
         sequences,
         &dex.pool,
         dex.actionsState,
@@ -402,10 +412,35 @@ public fun create_block(admin: &Admin, dex: &mut DEX, clock: &Clock, ctx: &mut T
     object_table::add(&mut dex.proof_calculations, block_number, proof_calculation);
 }
 
+public fun submit_proof(
+    dex: &mut DEX,
+    block_number: u64,
+    sequences: vector<u64>, // should be sorted
+    // publicInput: vector<u256>,
+    // publicOutput: vector<u256>,
+    // maxProofsVerified: u8, // should be 2
+    proofDataAvailabilityHash: String,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    let proof_calculation = object_table::borrow_mut(&mut dex.proof_calculations, block_number);
+    prover::submit_proof(
+        proof_calculation,
+        sequences,
+        // publicInput,
+        // publicOutput,
+        // maxProofsVerified,
+        proofDataAvailabilityHash,
+        clock,
+        ctx,
+    );
+}
+
 #[allow(lint(self_transfer))]
 public(package) fun create_block_internal(
     admin: &Admin,
     block_number: u64,
+    block_sequence: u64,
     sequences: vector<u64>,
     pool: &Pool,
     actions_state: vector<u8>,
@@ -427,6 +462,7 @@ public(package) fun create_block_internal(
         id: object::new(ctx),
         name: block_state_name,
         block_number: block_number,
+        block_sequence: block_sequence,
         state: pool.get_accounts(),
     };
     let block_state_address = block_state.id.to_address();
@@ -443,6 +479,7 @@ public(package) fun create_block_internal(
         id: block_id,
         name,
         block_number,
+        block_sequence,
         block_state,
         block_state_address,
         timestamp,
@@ -462,6 +499,7 @@ public(package) fun create_block_internal(
     event::emit(BlockEvent {
         address: block.id.to_address(),
         block_number,
+        block_sequence,
         name,
         timestamp,
         block_state: block_state_address,
@@ -487,6 +525,7 @@ public fun update_block_state_data_availability(
     event::emit(BlockEvent {
         address: block.id.to_address(),
         block_number: block.block_number,
+        block_sequence: block.block_sequence,
         name: block.name,
         timestamp: block.timestamp,
         block_state: block.block_state_address,
@@ -515,6 +554,7 @@ public fun update_block_proof_data_availability(
     event::emit(BlockEvent {
         address: block.id.to_address(),
         block_number: block.block_number,
+        block_sequence: block.block_sequence,
         name: block.name,
         timestamp: block.timestamp,
         block_state: block.block_state_address,
@@ -540,6 +580,7 @@ public fun update_block_mina_tx_hash(block: &mut Block, mina_tx_hash: String) {
     event::emit(BlockEvent {
         address: block.id.to_address(),
         block_number: block.block_number,
+        block_sequence: block.block_sequence,
         name: block.name,
         timestamp: block.timestamp,
         block_state: block.block_state_address,
@@ -563,6 +604,7 @@ public fun update_block_mina_tx_included_in_block(
     event::emit(BlockEvent {
         address: block.id.to_address(),
         block_number: block.block_number,
+        block_sequence: block.block_sequence,
         name: block.name,
         timestamp: block.timestamp,
         block_state: block.block_state_address,

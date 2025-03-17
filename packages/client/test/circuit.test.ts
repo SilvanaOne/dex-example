@@ -1,11 +1,13 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
 import { DEXProgram } from "../src/contracts/rollup.js";
+import { DEXContract } from "../src/contracts/contract.js";
 import { readFile, writeFile } from "node:fs/promises";
 import { saveToWalrus, readFromWalrus } from "../src/walrus.js";
 import { Cache, VerificationKey } from "o1js";
 
-let vk: VerificationKey | null = null;
+let vkProgram: VerificationKey | null = null;
+let vkContract: VerificationKey | null = null;
 let blobId: string | undefined = undefined;
 
 describe("Store circuit", async () => {
@@ -14,7 +16,16 @@ describe("Store circuit", async () => {
     console.time("compiled");
     const cache = Cache.FileSystem("./cache");
     const { verificationKey } = await DEXProgram.compile({ cache });
-    vk = verificationKey;
+    vkProgram = verificationKey;
+    console.timeEnd("compiled");
+  });
+
+  it("should compile DEX Contract", async () => {
+    console.log("compiling...");
+    console.time("compiled");
+    const cache = Cache.FileSystem("./cache");
+    const { verificationKey } = await DEXContract.compile({ cache });
+    vkContract = verificationKey;
     console.timeEnd("compiled");
   });
 
@@ -41,13 +52,18 @@ describe("Store circuit", async () => {
     if (!blobId) {
       throw new Error("blobId is not set");
     }
-    if (!vk) {
-      throw new Error("vk is not set");
+    if (!vkProgram) {
+      throw new Error("vkProgram is not set");
+    }
+    if (!vkContract) {
+      throw new Error("vkContract is not set");
     }
     const envContent = `# Circuit blob ID
 CIRCUIT_BLOB_ID=${blobId}
-CIRCUIT_VERIFICATION_KEY_HASH=${vk.hash.toBigInt().toString()}
-CIRCUIT_VERIFICATION_KEY_DATA=${vk.data}
+CIRCUIT_VERIFICATION_KEY_HASH=${vkProgram.hash.toBigInt().toString()}
+CIRCUIT_VERIFICATION_KEY_DATA=${vkProgram.data}
+CONTRACT_VERIFICATION_KEY_HASH=${vkContract.hash.toBigInt().toString()}
+CONTRACT_VERIFICATION_KEY_DATA=${vkContract.data}
 `;
     await writeFile(".env.circuit", envContent);
   });
