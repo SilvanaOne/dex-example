@@ -21,9 +21,11 @@
     "circuit": "npm run test test/circuit.test.ts",
     "config": "npm run test test/config.test.ts",
     "faucet": "npm run test test/faucet.test.ts",
-    "watch": "npm run test test/watch.test.ts",
+    "prove": "npm run test test/prove.test.ts",
     "proof": "npm run test test/proof.test.ts",
-    "start": "npm run deploy && npm run topup && npm run trade"
+    "merge": "npm run test test/merge.test.ts",
+    "settle": "npm run test test/settle.test.ts",
+    "start": "npm run users && npm run topup && npm run trade"
   },
   "node": {
     "version": ">=20.0.0"

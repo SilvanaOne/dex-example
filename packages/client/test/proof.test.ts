@@ -11,6 +11,7 @@ import {
 } from "../src/fetch.js";
 import { submitProof } from "../src/proof.js";
 import { SequenceState } from "../src/contracts/rollup.js";
+import { toASCII } from "node:punycode";
 let dexObjects: DexObjects | undefined = undefined;
 let sequenceState: SequenceState | undefined = undefined;
 const blockNumber = 1;
@@ -67,6 +68,8 @@ describe("Submit DEX proof", async () => {
 
     await submitProof({
       state: sequenceState,
+      mergedSequences1: [],
+      mergedSequences2: [],
     });
   });
 

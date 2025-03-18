@@ -1,25 +1,5 @@
-import {
-  UInt32,
-  Bool,
-  UInt64,
-  PrivateKey,
-  PublicKey,
-  Field,
-  Struct,
-  ZkProgram,
-  Gadgets,
-  Provable,
-  Cache,
-  Signature,
-  VerificationKey,
-  verify,
-  Mina,
-  AccountUpdate,
-  JsonProof,
-  Poseidon,
-} from "o1js";
+import { PublicKey, Cache, VerificationKey, Poseidon } from "o1js";
 import { DEXProgram, DEXProof, SequenceState } from "./rollup.js";
-import { DEXContract } from "./contract.js";
 import {
   Operation,
   ActionCreateAccount,
@@ -28,7 +8,6 @@ import {
   ActionTransfer,
   ActionTrade,
   Block,
-  BlockState,
   DEXState,
 } from "../types.js";
 import {
@@ -40,22 +19,30 @@ import {
   DEXMap,
   RollupDEXState,
   RollupUserTradingAccount,
-  RollupOrder,
-  RollupMinaBalance,
 } from "./provable-types.js";
-import {
-  fetchMinaAccount,
-  initBlockchain,
-  accountBalanceMina,
-  Memory,
-  sendTx,
-  pinJSON,
-} from "@silvana-one/mina-utils";
 import {
   deserializeIndexedMerkleMap,
   IndexedMapSerialized,
 } from "@silvana-one/storage";
-import { OperationEvent, OperationNames } from "../types.js";
+import {
+  OperationEvent,
+  OperationNames,
+  UserTradingAccount,
+} from "../types.js";
+import { compileDEXProgram } from "./compile.js";
+export async function calculateStateRoot(params: {
+  state: Record<string, UserTradingAccount>;
+}): Promise<bigint> {
+  const { state } = params;
+  const map = new DEXMap();
+  for (const [key, value] of Object.entries(state)) {
+    console.log("key", key);
+    const mapKey = Poseidon.hashPacked(PublicKey, PublicKey.fromBase58(key));
+    const mapValue = RollupUserTradingAccount.fromAccountData(value).hash();
+    map.set(mapKey, mapValue);
+  }
+  return map.root.toBigInt();
+}
 
 export async function calculateState(params: {
   poolPublicKey: string;
@@ -63,7 +50,6 @@ export async function calculateState(params: {
   sequence: number;
   serializedMap: IndexedMapSerialized;
   block: Block;
-  sequences: number[];
   operations: OperationEvent[];
   prove?: boolean;
 }): Promise<SequenceState> {
@@ -71,7 +57,6 @@ export async function calculateState(params: {
     blockNumber,
     block,
     sequence,
-    sequences,
     operations,
     serializedMap,
     poolPublicKey,
@@ -81,9 +66,10 @@ export async function calculateState(params: {
     (a, b) => a.operation.sequence - b.operation.sequence
   );
   let shouldCompile = false;
+  const startSequence = block.block_state.sequence;
   if (prove) {
-    if (!sequences.includes(sequence)) {
-      throw new Error("Prove sequence not found in sequences");
+    if (sequence < startSequence) {
+      throw new Error("Incorrect sequence, lower than start sequence");
     }
     if (!events.find((e) => e.operation.sequence === sequence)) {
       console.log("Prove sequence not found in events", {
@@ -94,10 +80,6 @@ export async function calculateState(params: {
     }
     shouldCompile = true;
   }
-  // console.log(
-  //   "event sequences",
-  //   events.map((e) => e.operation.sequence)
-  // );
   let map = deserializeIndexedMerkleMap({
     serializedIndexedMap: serializedMap,
     type: DEXMap,
@@ -110,7 +92,7 @@ export async function calculateState(params: {
     root: map.root.toBigInt(),
     length: map.length.toBigInt(),
     actionState: 0n,
-    sequence: BigInt(block.block_sequence),
+    sequence: BigInt(block.block_state.sequence),
   };
   let rollupDexState = RollupDEXState.fromRollupData(dexState);
   const accounts: Record<string, RollupUserTradingAccount> = {};
@@ -144,13 +126,14 @@ export async function calculateState(params: {
     throw new Error("Reconciliation map root does not match");
   }
   let dexProof: DEXProof | undefined = undefined;
+
   for (const event of events) {
     const operation = event.operation;
     const currentSequence = operation.sequence;
 
     const shouldProve = prove && currentSequence === sequence && shouldCompile;
     if (shouldProve) {
-      console.log("Processing event", {
+      console.log("Proving event", {
         sequence: currentSequence,
         operation: operation.operation,
         name: OperationNames[operation.operation],
@@ -180,7 +163,7 @@ export async function calculateState(params: {
   return new SequenceState({
     poolPublicKey,
     blockNumber,
-    sequence,
+    sequences: [sequence],
     dexState: rollupDexState,
     map,
     accounts,
@@ -398,27 +381,4 @@ export async function processOperation(params: {
     map: newMap,
     dexProof: dexProof,
   };
-}
-
-let vk: VerificationKey | undefined = undefined;
-
-async function compileDEXProgram() {
-  const vk_data = process.env.CIRCUIT_VERIFICATION_KEY_DATA;
-  const vk_hash = process.env.CIRCUIT_VERIFICATION_KEY_HASH;
-  if (!vk_data || !vk_hash) {
-    throw new Error(
-      "CIRCUIT_VERIFICATION_KEY_DATA or CIRCUIT_VERIFICATION_KEY_HASH is not set"
-    );
-  }
-  if (!vk) {
-    console.log("Compiling DEX Program");
-    console.time("Compiled DEX Program");
-    const cache = Cache.FileSystem("./cache");
-    const { verificationKey } = await DEXProgram.compile({ cache });
-    vk = verificationKey;
-    console.timeEnd("Compiled DEX Program");
-  }
-  if (vk_data !== vk.data || vk_hash !== vk.hash.toBigInt().toString()) {
-    throw new Error("Program verification key changed");
-  }
 }

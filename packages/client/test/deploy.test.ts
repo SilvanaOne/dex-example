@@ -323,7 +323,10 @@ describe("Deploy DEX contracts", async () => {
     if (!block) {
       throw new Error("block is not received");
     }
-    await writeFile(`./data/block-${block.blockNumber}.json`, blockString);
+    await writeFile(
+      `./data/block-${block.block.block_number}.json`,
+      blockString
+    );
   });
   it("should save block and block state blobIds to Sui", async () => {
     if (!packageID) {

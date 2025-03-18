@@ -259,7 +259,6 @@ export const DEXProgram = ZkProgram({
         buyer.quoteTokenBalance.amount = buyer.quoteTokenBalance.amount.sub(
           action.quoteTokenAmount
         );
-        buyer.nonce = buyer.nonce.add(1);
 
         // Update seller balances
         seller.ask.amount = seller.ask.amount.sub(action.baseTokenAmount);
@@ -269,7 +268,6 @@ export const DEXProgram = ZkProgram({
         seller.quoteTokenBalance.amount = seller.quoteTokenBalance.amount.add(
           action.quoteTokenAmount
         );
-        seller.nonce = seller.nonce.add(1);
 
         map.set(buyerKey, buyer.hash());
         map.set(sellerKey, seller.hash());
@@ -415,10 +413,12 @@ export const DEXProgram = ZkProgram({
 
 export class DEXProof extends ZkProgram.Proof(DEXProgram) {}
 
+const stateType = "SequenceStateV1";
+
 export class SequenceState {
   poolPublicKey: string;
   blockNumber: number;
-  sequence: number;
+  sequences: number[];
   dexState: RollupDEXState;
   map: DEXMap;
   accounts: Record<string, RollupUserTradingAccount>;
@@ -427,7 +427,7 @@ export class SequenceState {
   constructor(params: {
     poolPublicKey: string;
     blockNumber: number;
-    sequence: number;
+    sequences: number[];
     dexState: RollupDEXState;
     map: DEXMap;
     accounts: Record<string, RollupUserTradingAccount>;
@@ -435,7 +435,7 @@ export class SequenceState {
   }) {
     this.poolPublicKey = params.poolPublicKey;
     this.blockNumber = params.blockNumber;
-    this.sequence = params.sequence;
+    this.sequences = params.sequences;
     this.dexState = params.dexState;
     this.map = params.map;
     this.accounts = params.accounts;
@@ -445,9 +445,10 @@ export class SequenceState {
   toJSON(): string {
     return JSON.stringify(
       {
+        type: stateType,
         poolPublicKey: this.poolPublicKey,
         blockNumber: this.blockNumber,
-        sequence: this.sequence,
+        sequences: this.sequences,
         dexState: this.dexState.toRollupData(),
         map: serializeIndexedMap(this.map),
         accounts: Object.entries(this.accounts).map(([key, value]) => ({
@@ -468,13 +469,16 @@ export class SequenceState {
         ? BigInt(value.slice(0, -1))
         : value
     );
+    if (data.type !== stateType) {
+      throw new Error("Invalid type");
+    }
     const dexProof: DEXProof | undefined = data.dexProof
       ? ((await DEXProof.fromJSON(data.dexProof as JsonProof)) as DEXProof)
       : undefined;
     return new SequenceState({
       poolPublicKey: data.poolPublicKey,
       blockNumber: data.blockNumber,
-      sequence: data.sequence,
+      sequences: data.sequences,
       dexState: RollupDEXState.fromRollupData(data.dexState),
       map: deserializeIndexedMerkleMap({
         serializedIndexedMap: data.map,

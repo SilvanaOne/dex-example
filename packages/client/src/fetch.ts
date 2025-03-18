@@ -11,7 +11,7 @@ import {
   rawBlockToBlock,
   SequenceData,
   ProofStatusData,
-  ProofStatus,
+  BlockProofs,
 } from "./types.js";
 import {
   EventId,
@@ -62,6 +62,11 @@ export async function fetchDexObject() {
   return data;
 }
 
+export async function fetchDex() {
+  const dexObject = await fetchDexObject();
+  return (dexObject?.data?.content as any)?.fields;
+}
+
 export async function fetchDexAccount(
   address: string
 ): Promise<UserTradingAccount | undefined> {
@@ -75,7 +80,7 @@ export async function fetchDexAccount(
   if (accounts && Array.isArray(accounts)) {
     const account = accounts.find((item) => item?.fields?.key === publicKey);
     if (account) {
-      console.log("account", account);
+      //console.log("account", account);
       const data = account?.fields?.value?.fields;
       const result: UserTradingAccount = {
         baseTokenBalance: {
@@ -141,52 +146,77 @@ export async function fetchEvents(params: {
 }
 
 export async function fetchDexEvents(params: {
-  sequences?: number[];
+  firstSequence: number;
+  lastSequence?: number;
   limit?: number;
 }): Promise<OperationEvent[] | undefined> {
-  const { sequences, limit } = params;
+  const { firstSequence, lastSequence, limit } = params;
   //console.log("fetchDexEvents", params);
   if (!packageID) {
     throw new Error("PACKAGE_ID is not set");
   }
-  const events: SuiEvent[] = [];
-  let eventsData = await fetchEvents({
-    packageID,
-    module: "transactions",
+  const events: OperationEvent[] = [];
+
+  function convertEvents(events: SuiEvent[]): OperationEvent[] {
+    return events
+      ?.filter((event) => event?.type?.includes("::transactions::Operation"))
+      .map((event) => {
+        return {
+          type: event.type?.split("::").at(-1),
+          details: (event?.parsedJson as any)?.details,
+          operation: (event?.parsedJson as any)?.operation,
+        } as RawOperationEvent;
+      })
+      .map(convertRawOperationEvent);
+  }
+  let eventsData = await suiClient.queryEvents({
+    query: {
+      MoveModule: {
+        package: packageID,
+        module: "transactions",
+      },
+    },
     limit,
+    order: "descending",
   });
   if (eventsData) {
-    events.push(...eventsData.data);
+    events.push(...convertEvents(eventsData.data));
   }
-  while (eventsData?.hasNextPage && eventsData?.nextCursor) {
-    eventsData = await fetchEvents({
-      packageID,
-      module: "transactions",
+  let fetchedAllEvents = events.some((event) => {
+    return event.operation.sequence === firstSequence;
+  });
+  while (
+    eventsData?.hasNextPage &&
+    eventsData?.nextCursor &&
+    !fetchedAllEvents
+  ) {
+    eventsData = await suiClient.queryEvents({
+      query: {
+        MoveModule: {
+          package: packageID,
+          module: "transactions",
+        },
+      },
       limit,
+      order: "descending",
       cursor: eventsData?.nextCursor,
     });
     if (eventsData) {
-      events.push(...eventsData.data);
+      events.push(...convertEvents(eventsData.data));
     }
-  }
-  const filteredEvents: OperationEvent[] | undefined = events
-    ?.filter((event) => event?.type?.includes("::transactions::Operation"))
-    .map((event) => {
-      return {
-        type: event.type?.split("::").at(-1),
-        details: (event?.parsedJson as any)?.details,
-        operation: (event?.parsedJson as any)?.operation,
-      } as RawOperationEvent;
-    })
-    .map(convertRawOperationEvent)
-    ?.filter((event) => {
-      //console.log("event 1", event);
-      if (sequences) {
-        return sequences.includes(event?.operation?.sequence);
-      }
-      return true;
+    fetchedAllEvents = events.some((event) => {
+      return event.operation.sequence === firstSequence;
     });
-  //console.log("events", filteredEvents);
+  }
+  const filteredEvents: OperationEvent[] = events.filter((event) => {
+    if (event?.operation?.sequence < firstSequence) {
+      return false;
+    }
+    if (lastSequence && event?.operation?.sequence > lastSequence) {
+      return false;
+    }
+    return true;
+  });
   return filteredEvents;
 }
 
@@ -203,17 +233,16 @@ export async function fetchBlock(params: {
   //console.log(`block:`, block);
   const blockEvents = (
     await fetchDexEvents({
-      sequences: block.sequences,
+      firstSequence: block.start_sequence,
+      lastSequence: block.end_sequence,
     })
   )?.filter((event) => {
     return event.operation.blockNumber === block.block_number;
   });
   //console.log(`blockEvents:`, blockEvents);
   const blockData: BlockData = {
-    blockNumber: block.block_number,
-    blockID,
-    sequences: block.sequences,
     block,
+    blockID,
     events: blockEvents ?? [],
   };
   return blockData;
@@ -240,52 +269,43 @@ export async function fetchSequenceData(params: {
   if (
     !dexData ||
     !dexData?.block_number ||
-    !dexData?.last_block_address ||
+    !dexData?.previous_block_address ||
     !dexData?.pool?.fields?.publicKeyBase58
   ) {
     throw new Error("DEX_DATA is not received");
   }
   const poolPublicKey = dexData?.pool?.fields?.publicKeyBase58;
-  //console.log("poolPublicKey", poolPublicKey);
-  const lastBlockNumber = Number(dexData?.block_number) - 1;
-  //console.log("lastBlockNumber", lastBlockNumber);
-  let lastBlockAddress = dexData?.last_block_address;
-  //console.log("lastBlockAddress", lastBlockAddress);
-  let block = await fetchBlock({ blockID: lastBlockAddress });
-  //console.log("fetched block", block.blockNumber);
+  let previousBlockAddress = dexData?.previous_block_address;
+  let blockData = await fetchBlock({ blockID: previousBlockAddress });
   while (
-    block.blockNumber > previousBlockNumber ||
-    block?.block?.state_data_availability === undefined
+    blockData?.block?.block_number > previousBlockNumber ||
+    blockData?.block?.state_data_availability === undefined
   ) {
-    lastBlockAddress = block?.block?.previous_block_address;
-    if (!lastBlockAddress) {
-      throw new Error("Last block address is not received");
+    previousBlockAddress = blockData?.block?.previous_block_address;
+    if (!previousBlockAddress) {
+      throw new Error("Previous block address is not received");
     }
-    block = await fetchBlock({ blockID: lastBlockAddress });
-    //console.log("fetched block", block.blockNumber);
+    blockData = await fetchBlock({ blockID: previousBlockAddress });
   }
-  if (block.blockNumber > previousBlockNumber) {
+  if (blockData?.block?.block_number > previousBlockNumber) {
     throw new Error("Fetched block number is not correct");
   }
-  //console.log("block", block);
-  const dataAvailability = block?.block?.state_data_availability;
+  const dataAvailability = blockData?.block?.state_data_availability;
   if (!dataAvailability) {
     throw new Error("Data availability is not received");
   }
-  //console.log("dataAvailability", dataAvailability);
   const data = await readFromWalrus({
     blobId: dataAvailability,
   });
-  //console.log("data", data);
   if (!data) {
     throw new Error("Data is not received from walrus");
   }
-  const blockData: BlockData = JSON.parse(data);
-  const blockState = blockData?.block?.block_state;
+  const daBlockData: BlockData = JSON.parse(data);
+  const blockState = daBlockData?.block?.block_state;
   if (!blockState) {
     throw new Error("Block state is not received");
   }
-  const serializedMap = blockData?.map;
+  const serializedMap = daBlockData?.map;
 
   if (!serializedMap) {
     throw new Error("Serialized map is not received");
@@ -297,33 +317,10 @@ export async function fetchSequenceData(params: {
   if (!map) {
     throw new Error("Map cannot be deserialized");
   }
-  //console.log("map root", map.root.toBigInt());
-  //console.log("map length", map.length.toBigInt());
 
-  function getStartSequence(sequences: number[]) {
-    if (!sequences) {
-      throw new Error("Sequences are not received");
-    }
-    if (sequences.length === 0) {
-      return 1;
-    }
-    return sequences.reduce((acc, curr) => {
-      if (curr > sequence) {
-        return curr;
-      }
-      return acc;
-    }, sequences[0]);
-  }
-
-  const startSequence = getStartSequence(blockData?.block?.sequences);
-  const sequences: number[] = [];
-  for (let i = startSequence; i <= sequence; i++) {
-    sequences.push(i);
-  }
-  //console.log("sequences", sequences);
   const events = await fetchDexEvents({
-    sequences,
-    limit: 100,
+    firstSequence: blockData?.block?.block_state.sequence + 1,
+    lastSequence: sequence,
   });
   if (!events) {
     throw new Error("Events are not received");
@@ -336,7 +333,6 @@ export async function fetchSequenceData(params: {
     sequence,
     serializedMap,
     block: blockData.block,
-    sequences,
     operations: events,
     prove,
   });
@@ -379,7 +375,7 @@ export async function fetchProofStatus(params: {
   });
   const items = (
     statuses.data?.content as any
-  )?.fields?.statuses?.fields?.contents.map((item: any) => {
+  )?.fields?.proofs?.fields?.contents.map((item: any) => {
     return {
       sequences: item?.fields?.key,
       status: item?.fields?.value?.fields,
@@ -391,40 +387,55 @@ export async function fetchProofStatus(params: {
       item?.sequences[0] === sequence.toString()
     );
   });
-  //console.log("statusData", statusData);
-  /*
-statusData {
-  sequences: [ '11' ],
-  status: {
-    input1: null,
-    input2: null,
-    is_merge_proof: false,
-    number_of_retries: 0,
-    operation: 4,
-    proof: {
-      type: '0x2860e790344704baf2896c16550643fe989f50b17670b321bc89e73f005f602f::prover::Proof',
-      fields: [Object]
-    },
-    prover: null,
-    sequence: '11',
-    status: 2,
-    timestamp: '1742247125236'
-  }
-}
-  */
+
   const status: ProofStatusData = {
-    status: statusData?.status?.status,
+    status: Number(statusData?.status?.status),
     timestamp: Number(statusData?.status?.timestamp),
-    number_of_retries: statusData?.status?.number_of_retries,
-    is_merge_proof: statusData?.status?.is_merge_proof,
-    sequence: statusData?.status?.sequence
-      ? Number(statusData?.status?.sequence)
-      : undefined,
-    operation: statusData?.status?.operation,
-    input1: statusData?.status?.input1,
-    input2: statusData?.status?.input2,
-    proof: statusData?.status?.proof?.fields,
-    prover: statusData?.status?.prover,
+    da_hash: statusData?.status?.da_hash,
   };
   return status;
+}
+
+export async function fetchBlockProofs(params: {
+  blockNumber: number;
+}): Promise<BlockProofs> {
+  if (!dexID) {
+    throw new Error("DEX_ID is not set");
+  }
+  const { blockNumber } = params;
+  //console.log("fetchBlockProofs", { blockNumber });
+  const dex = await fetchDexObject();
+  const dexData = (dex?.data?.content as any)?.fields?.proof_calculations.fields
+    ?.id?.id;
+  //console.log("dexData", dexData);
+  if (!dexData || typeof dexData !== "string") {
+    throw new Error("DEX_DATA is not received");
+  }
+  const statuses = await suiClient.getDynamicFieldObject({
+    parentId: dexData,
+    name: {
+      type: "u64",
+      value: blockNumber.toString(),
+    },
+  });
+
+  const data = (statuses.data?.content as any)?.fields;
+
+  const items = (
+    statuses.data?.content as any
+  )?.fields?.proofs?.fields?.contents.map((item: any) => {
+    return {
+      sequences: (item?.fields?.key as string[])?.map(Number),
+      status: item?.fields?.value?.fields,
+    };
+  });
+
+  return {
+    blockNumber,
+    blockProof: data.block_proof,
+    startSequence: Number(data.start_sequence),
+    endSequence: data.end_sequence ? Number(data.end_sequence) : undefined,
+    isFinished: data.is_finished,
+    proofs: items,
+  };
 }

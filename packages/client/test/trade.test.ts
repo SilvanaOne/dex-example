@@ -128,7 +128,7 @@ describe("Trade", async () => {
           baseTokenAmount: amount,
           price: trader.bid,
         });
-
+        console.time("bid state");
         const { minaSignature, suiSignature } = await wrapMinaSignature({
           minaSignature: bidSignatures.minaSignature,
           minaPublicKey: trader.user.minaPublicKey,
@@ -179,11 +179,11 @@ describe("Trade", async () => {
         });
 
         const { digest, events } = await executeTx(signedTx);
-        console.log(`${trader.name} bid:`, {
-          digest,
-          events,
-        });
+        console.timeEnd("bid state");
+        console.time("bid tx public");
+        console.log(`${trader.name} bid:`, digest);
         const waitResult = await waitTx(digest);
+        console.timeEnd("bid tx public");
         if (waitResult.errors) {
           console.log(`Errors for tx ${digest}:`, waitResult.errors);
         }
@@ -193,7 +193,7 @@ describe("Trade", async () => {
         if (!newAccount) {
           throw new Error("Cannot fetch accounts");
         }
-        console.log(`${trader.name} account after bid:`, newAccount);
+        //console.log(`${trader.name} account after bid:`, newAccount);
       }
       {
         const tx = new Transaction();
@@ -206,7 +206,8 @@ describe("Trade", async () => {
           baseTokenAmount: amount,
           price: trader.ask,
         });
-
+        console.time("ask state");
+        console.time("ask signature");
         const { minaSignature, suiSignature } = await wrapMinaSignature({
           minaSignature: askSignatures.minaSignature,
           minaPublicKey: trader.user.minaPublicKey,
@@ -243,13 +244,15 @@ describe("Trade", async () => {
           signer: keypair,
           client: suiClient,
         });
-
+        console.timeEnd("ask signature");
+        console.time("ask tx send");
         const { digest, events } = await executeTx(signedTx);
-        console.log(`${trader.name} ask:`, {
-          digest,
-          events,
-        });
+        console.timeEnd("ask tx send");
+        console.timeEnd("ask state");
+        console.time("ask tx public");
+        console.log(`${trader.name} ask:`, digest);
         const waitResult = await waitTx(digest);
+        console.timeEnd("ask tx public");
         if (waitResult.errors) {
           console.log(`Errors for tx ${digest}:`, waitResult.errors);
         }
@@ -259,7 +262,7 @@ describe("Trade", async () => {
         if (!newAccount) {
           throw new Error("Cannot fetch accounts");
         }
-        console.log(`${trader.name} account after ask:`, newAccount);
+        //console.log(`${trader.name} account after ask:`, newAccount);
       }
     }
   });
@@ -318,10 +321,7 @@ describe("Trade", async () => {
     });
 
     const { digest, events } = await executeTx(signedTx);
-    console.log(`trade:`, {
-      digest,
-      events,
-    });
+    console.log(`trade:`, digest);
     const waitResult = await waitTx(digest);
     if (waitResult.errors) {
       console.log(`Errors for tx ${digest}:`, waitResult.errors);
@@ -332,13 +332,13 @@ describe("Trade", async () => {
     if (!newAliceAccount) {
       throw new Error("Cannot fetch accounts");
     }
-    console.log(`Alice account after trade:`, newAliceAccount);
+    //console.log(`Alice account after trade:`, newAliceAccount);
 
     const newBobAccount = await fetchDexAccount(bob.minaPublicKey);
     if (!newBobAccount) {
       throw new Error("Cannot fetch accounts");
     }
-    console.log(`Bob account after trade:`, newBobAccount);
+    //console.log(`Bob account after trade:`, newBobAccount);
     accountsAfter.push({
       name: "Alice",
       account: newAliceAccount,

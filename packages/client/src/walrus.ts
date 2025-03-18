@@ -30,10 +30,10 @@ export async function saveToWalrus({
   console.timeEnd("written");
   if (response.status === 200) {
     const info = await response.json();
-    console.log("info", info);
+    //console.log("info", info);
     const blobId =
       info?.newlyCreated?.blobObject?.blobId ?? info?.alreadyCertified?.blobId;
-    console.log("blobId", blobId);
+    console.log("Walrus blobId", blobId);
     return blobId;
   } else {
     console.error("saveToWalrus failed:", {
@@ -52,7 +52,7 @@ export async function readFromWalrus({
   if (!blobId) {
     throw new Error("blobId is not provided");
   }
-  console.log("Reading blob", blobId);
+  console.log("Reading walrus blob", blobId);
   console.time("read");
   const response = await fetch(`${readerUrl}${blobId}`);
   console.timeEnd("read");

@@ -6,18 +6,12 @@ import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 import { getKey } from "../src/key.js";
 import { suiClient } from "../src/sui-client.js";
 import { executeTx, waitTx } from "../src/execute.js";
-import { fetchSuiObject, fetchDexEvents } from "../src/fetch.js";
+import { fetchBlock, fetchSequenceData } from "../src/fetch.js";
 import { readFromWalrus, saveToWalrus } from "../src/walrus.js";
-import {
-  OperationEvent,
-  BlockData,
-  Block,
-  RawBlock,
-  rawBlockToBlock,
-  UserTradingAccount,
-} from "../src/types.js";
+import { BlockData } from "../src/types.js";
 import { writeFile } from "node:fs/promises";
-
+import { serializeIndexedMap } from "@silvana-one/storage";
+import { calculateStateRoot } from "../src/contracts/state.js";
 const adminSecretKey: string = process.env.ADMIN_SECRET_KEY!;
 const adminAddress: string = process.env.ADMIN!;
 if (!adminSecretKey) {
@@ -29,9 +23,7 @@ const dexID = process.env.DEX_ID;
 const adminID = process.env.ADMIN_ID;
 let blockID: string | undefined = undefined;
 let blockBlobId: string | undefined = undefined;
-let blockEvents: OperationEvent[] | undefined = undefined;
-let sequences: number[] | undefined = undefined;
-let blockNumber: number | undefined = undefined;
+
 describe("DEX Block", async () => {
   it("should create a block", async () => {
     if (!packageID) {
@@ -83,18 +75,7 @@ describe("DEX Block", async () => {
       digest,
       events,
     });
-    sequences =
-      (events as any)?.sequences && Array.isArray((events as any)?.sequences)
-        ? (events as any)?.sequences.map((sequence: any) => Number(sequence))
-        : undefined;
-    console.log(`sequences:`, sequences);
-    assert.ok(sequences, "sequences are not received");
-    blockNumber = (events as any)?.block_number
-      ? Number((events as any)?.block_number)
-      : undefined;
-    assert.ok(blockNumber, "block number is not received");
-    assert.ok(typeof blockNumber === "number", "block number is not a number");
-    assert.ok(blockNumber > 0, "block number is not positive");
+
     createBlockTx.objectChanges?.map((change) => {
       if (
         change.type === "created" &&
@@ -110,15 +91,7 @@ describe("DEX Block", async () => {
     if (waitResult.errors) {
       console.log(`Errors for tx ${digest}:`, waitResult.errors);
     }
-
     assert.ok(!waitResult.errors, "create block transaction failed");
-
-    blockEvents = await fetchDexEvents({
-      sequences,
-    });
-    console.log(`blockEvents:`, blockEvents);
-    assert.ok(blockEvents, "block events are not received");
-    //assert.ok(blockEvents?.length > 0, "block events are not received");
   });
   it("should save block and block state to Walrus", async () => {
     if (!blockID) {
@@ -129,30 +102,38 @@ describe("DEX Block", async () => {
       throw new Error("admin address is not set");
     }
 
-    if (!blockEvents) {
-      throw new Error("block events are not set");
+    const blockData = await fetchBlock({ blockID });
+    // console.log("blockData", blockData);
+    // console.log("blockData block", blockData.block);
+    // console.log("blockData block_state", blockData.block.block_state);
+    console.log(
+      "blockData block_state state",
+      blockData.block.block_state.state
+    );
+    const sequenceData = await fetchSequenceData({
+      sequence: blockData.block.block_state.sequence,
+      blockNumber: blockData.block.block_number,
+    });
+    if (!sequenceData) {
+      throw new Error("sequence data is not set");
     }
-
-    if (!sequences) {
-      throw new Error("sequences are not set");
+    console.log(
+      "sequenceData",
+      Object.entries(sequenceData.accounts).forEach(([key, value]) => {
+        console.log("key", key);
+        console.log("value", value.toAccountData());
+      })
+    );
+    const root = await calculateStateRoot({
+      state: blockData.block.block_state.state,
+    });
+    console.log("root", root);
+    console.log("sequenceData.map.root", sequenceData.map.root.toBigInt());
+    console.log("map length", sequenceData.map.length.toBigInt());
+    if (root !== sequenceData.map.root.toBigInt()) {
+      throw new Error("state root does not match");
     }
-
-    if (!blockNumber) {
-      throw new Error("block number is not set");
-    }
-
-    const fetchedBlock = await fetchSuiObject(blockID);
-    const rawBlock = (fetchedBlock?.data?.content as any)?.fields as RawBlock;
-    assert.ok(rawBlock, "raw block is not set");
-    const block: Block = rawBlockToBlock(rawBlock);
-    //console.log(`block:`, block);
-    const blockData: BlockData = {
-      blockNumber,
-      blockID,
-      sequences,
-      block,
-      events: blockEvents,
-    };
+    blockData.map = serializeIndexedMap(sequenceData.map);
     blockBlobId = await saveToWalrus({
       data: JSON.stringify(
         blockData,
@@ -173,11 +154,12 @@ describe("DEX Block", async () => {
     const block = await readFromWalrus({
       blobId: blockBlobId,
     });
-    console.log(`block:`, block);
+    //console.log(`block:`, block);
     if (!block) {
       throw new Error("block is not received");
     }
-    await writeFile(`./data/block-${blockNumber}.json`, block);
+    const blockData = JSON.parse(block) as BlockData;
+    await writeFile(`./data/block-${blockData.block.block_number}.json`, block);
   });
   it("should save block and block state blobIds to Sui", async () => {
     if (!packageID) {

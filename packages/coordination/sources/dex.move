@@ -2,15 +2,7 @@ module dex::main;
 
 use dex::admin::{Admin, get_admin_address};
 use dex::pool::{Self, Pool};
-use dex::prover::{
-    Self,
-    Circuit,
-    create_circuit,
-    create_block_proof_calculation,
-    get_proof_calculation_address,
-    request_proof_calculation,
-    ProofCalculation
-};
+use dex::prover;
 use dex::token;
 use dex::user::UserTradingAccount;
 use std::string::String;
@@ -28,7 +20,7 @@ public struct BlockState has key, store {
     id: UID,
     name: String,
     block_number: u64,
-    block_sequence: u64,
+    sequence: u64,
     state: VecMap<u256, UserTradingAccount>,
 }
 
@@ -36,13 +28,13 @@ public struct Block has key, store {
     id: UID,
     name: String,
     block_number: u64,
-    block_sequence: u64,
+    start_sequence: u64,
+    end_sequence: u64,
     block_state: BlockState,
     block_state_address: address,
     timestamp: u64,
     time_since_last_block: u64,
     number_of_transactions: u64,
-    sequences: vector<u64>,
     start_action_state: vector<u8>,
     end_action_state: vector<u8>,
     state_data_availability: Option<String>,
@@ -57,17 +49,15 @@ public struct BlockEvent has copy, drop {
     address: address,
     name: String,
     block_number: u64,
-    block_sequence: u64,
+    start_sequence: u64,
+    end_sequence: u64,
     timestamp: u64,
     block_state: address,
     previous_block_address: Option<address>,
     time_since_last_block: u64,
     number_of_transactions: u64,
-    sequences: vector<u64>,
     start_action_state: vector<u8>,
     end_action_state: vector<u8>,
-    state_data_availability: Option<String>,
-    proof_data_availability: Option<String>,
     proof_calculation: address,
 }
 
@@ -77,23 +67,31 @@ public struct DataAvailabilityEvent has copy, drop {
     proof_data_availability: Option<String>,
 }
 
+public struct MinaTransactionEvent has copy, drop {
+    block_number: u64,
+    mina_tx_hash: String,
+    mina_tx_included_in_block: Option<u64>,
+}
+
 public struct DEX has key, store {
     id: UID,
     name: String,
+    sequence: u64,
+    block_number: u64,
+    actionsState: vector<u8>,
+    proof_calculations: object_table::ObjectTable<u64, prover::ProofCalculation>,
     admin: address,
     public_key: vector<u8>,
-    circuit: Circuit,
+    circuit: prover::Circuit,
     circuit_address: address,
     pool: Pool,
-    proof_calculations: object_table::ObjectTable<u64, ProofCalculation>,
     version: u32,
-    actionsState: vector<u8>,
-    sequence: u64,
     previous_block_timestamp: u64,
-    previous_block_sequence: u64,
+    previous_block_last_sequence: u64,
     previous_block_actions_state: vector<u8>,
-    block_number: u64,
-    last_block_address: address,
+    previous_block_address: address,
+    last_proved_block_number: u64,
+    last_proved_sequence: u64,
     isPaused: bool,
 }
 
@@ -200,7 +198,7 @@ public fun create_dex(
     let timestamp = clock.timestamp_ms();
     let bytes = vector<u8>[0];
     let hash = blake2b256(&bytes);
-    let (circuit, circuit_address) = create_circuit(
+    let (circuit, circuit_address) = prover::create_circuit(
         circuit_name,
         circuit_description,
         circuit_package_da_hash,
@@ -248,10 +246,11 @@ public fun create_dex(
     let (
         proof_calculation_block_0,
         proof_calculation_block_0_address,
-    ) = create_block_proof_calculation(
+    ) = prover::create_block_proof_calculation(
         0u64,
         circuit_address,
-        option::some<vector<u64>>(vector<u64>[]),
+        0u64,
+        option::some(0u64),
         clock,
         ctx,
     );
@@ -260,7 +259,7 @@ public fun create_dex(
         admin,
         0u64,
         0u64,
-        vector<u64>[],
+        0u64,
         &pool,
         hash,
         vector<u8>[],
@@ -271,35 +270,38 @@ public fun create_dex(
         ctx,
     );
 
-    let (proof_calculation_block_1, _) = create_block_proof_calculation(
+    let (proof_calculation_block_1, _) = prover::create_block_proof_calculation(
         1u64,
         circuit_address,
-        option::none<vector<u64>>(),
+        1u64,
+        option::none(),
         clock,
         ctx,
     );
-    let mut proof_calculations = object_table::new<u64, ProofCalculation>(ctx);
+    let mut proof_calculations = object_table::new<u64, prover::ProofCalculation>(ctx);
     proof_calculations.add(0u64, proof_calculation_block_0);
     proof_calculations.add(1u64, proof_calculation_block_1);
 
     let dex = DEX {
         id: object::new(ctx),
         name: b"Silvana DEX".to_string(),
-        pool,
+        sequence: 1u64,
+        block_number: 1u64,
+        actionsState: hash,
+        proof_calculations,
         admin: ctx.sender(),
         public_key,
         circuit,
         circuit_address,
+        pool,
         version: DEX_VERSION,
-        actionsState: hash,
-        sequence: 1u64,
-        previous_block_sequence: 0u64,
         previous_block_timestamp: block_timestamp,
+        previous_block_last_sequence: 0u64,
         previous_block_actions_state: hash,
-        block_number: 1u64,
+        previous_block_address: block_address,
+        last_proved_block_number: 0u64,
+        last_proved_sequence: 0u64,
         isPaused: false,
-        last_block_address: block_address,
-        proof_calculations,
     };
 
     event::emit(DEXCreateEvent {
@@ -355,10 +357,8 @@ public(package) fun get_pool_account(dex: &mut DEX, publicKey: u256): &mut UserT
     pool::get_account(&mut dex.pool, publicKey)
 }
 
-public(package) fun update_actions_state(dex: &mut DEX, operation: u8, actionState: vector<u8>) {
+public(package) fun update_actions_state(dex: &mut DEX, actionState: vector<u8>) {
     assert!(dex.isPaused == false, EDEXPaused);
-    let proof_calculation = object_table::borrow_mut(&mut dex.proof_calculations, dex.block_number);
-    request_proof_calculation(proof_calculation, operation, dex.sequence);
     dex.actionsState = actionState;
     dex.sequence = dex.sequence + 1;
 }
@@ -371,77 +371,96 @@ public(package) fun update_pool_last_price(dex: &mut DEX, last_price: u64) {
 const ENoTransactions: vector<u8> = b"No new transactions";
 
 public fun create_block(admin: &Admin, dex: &mut DEX, clock: &Clock, ctx: &mut TxContext) {
-    assert!((dex.previous_block_sequence + 1) != dex.sequence, ENoTransactions);
+    assert!((dex.previous_block_last_sequence + 1) != dex.sequence, ENoTransactions);
     dex.only_admin(ctx);
     let mut block_number = dex.block_number;
-    let mut sequences = vector<u64>[];
-    let mut i = dex.previous_block_sequence + 1;
-    while (i < dex.sequence) {
-        vector::push_back(&mut sequences, i);
-        i = i + 1;
+    let start_sequence = dex.previous_block_last_sequence + 1;
+    let end_sequence = dex.sequence - 1;
+    let proof_calculation = object_table::borrow_mut(&mut dex.proof_calculations, block_number);
+    let finished = prover::set_end_sequence(proof_calculation, end_sequence, clock);
+    if (finished) {
+        if (dex.last_proved_block_number == block_number - 1) {
+            dex.last_proved_block_number = block_number;
+        };
     };
+
     let (address, timestamp) = create_block_internal(
         admin,
         block_number,
-        dex.sequence-1,
-        sequences,
+        start_sequence,
+        end_sequence,
         &dex.pool,
         dex.actionsState,
         dex.previous_block_actions_state,
-        get_proof_calculation_address(
+        prover::get_proof_calculation_address(
             object_table::borrow(&dex.proof_calculations, block_number),
         ),
-        option::some(dex.last_block_address),
+        option::some(dex.previous_block_address),
         option::some(dex.previous_block_timestamp),
         clock,
         ctx,
     );
     block_number = block_number + 1;
-    let (proof_calculation, _) = create_block_proof_calculation(
+    let (new_proof_calculation, _) = prover::create_block_proof_calculation(
         block_number,
         dex.circuit_address,
+        dex.sequence,
         option::none(),
         clock,
         ctx,
     );
     dex.block_number = block_number;
-    dex.last_block_address = address;
+    dex.previous_block_address = address;
     dex.previous_block_timestamp = timestamp;
     dex.previous_block_actions_state = dex.actionsState;
-    dex.previous_block_sequence = dex.sequence - 1;
-    object_table::add(&mut dex.proof_calculations, block_number, proof_calculation);
+    dex.previous_block_last_sequence = end_sequence;
+    object_table::add(&mut dex.proof_calculations, block_number, new_proof_calculation);
 }
 
 public fun submit_proof(
     dex: &mut DEX,
     block_number: u64,
     sequences: vector<u64>, // should be sorted
-    // publicInput: vector<u256>,
-    // publicOutput: vector<u256>,
-    // maxProofsVerified: u8, // should be 2
-    proofDataAvailabilityHash: String,
+    merged_sequences_1: vector<u64>,
+    merged_sequences_2: vector<u64>,
+    da_hash: String,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
     let proof_calculation = object_table::borrow_mut(&mut dex.proof_calculations, block_number);
-    prover::submit_proof(
+    let finished = prover::submit_proof(
         proof_calculation,
         sequences,
-        // publicInput,
-        // publicOutput,
-        // maxProofsVerified,
-        proofDataAvailabilityHash,
+        da_hash,
         clock,
         ctx,
     );
+    if (vector::length(&merged_sequences_1) > 0) {
+        prover::use_proof(proof_calculation, merged_sequences_1, clock, ctx);
+    };
+    if (vector::length(&merged_sequences_2) > 0) {
+        prover::use_proof(proof_calculation, merged_sequences_2, clock, ctx);
+    };
+    if (finished) {
+        let mut i = dex.last_proved_block_number + 1;
+        while (i < dex.block_number) {
+            let proof_calculation = object_table::borrow(&dex.proof_calculations, i);
+            if (prover::is_finished(proof_calculation)) {
+                dex.last_proved_block_number = i;
+                let end_sequence = prover::get_proof_calculation_end_sequence(proof_calculation);
+                dex.last_proved_sequence = *end_sequence.borrow();
+            };
+            i = i + 1;
+        };
+    };
 }
 
 #[allow(lint(self_transfer))]
 public(package) fun create_block_internal(
     admin: &Admin,
     block_number: u64,
-    block_sequence: u64,
-    sequences: vector<u64>,
+    start_sequence: u64,
+    end_sequence: u64,
     pool: &Pool,
     actions_state: vector<u8>,
     previous_block_actions_state: vector<u8>,
@@ -462,7 +481,7 @@ public(package) fun create_block_internal(
         id: object::new(ctx),
         name: block_state_name,
         block_number: block_number,
-        block_sequence: block_sequence,
+        sequence: end_sequence,
         state: pool.get_accounts(),
     };
     let block_state_address = block_state.id.to_address();
@@ -479,13 +498,13 @@ public(package) fun create_block_internal(
         id: block_id,
         name,
         block_number,
-        block_sequence,
+        start_sequence,
+        end_sequence,
         block_state,
         block_state_address,
         timestamp,
         time_since_last_block,
-        number_of_transactions: vector::length(&sequences),
-        sequences,
+        number_of_transactions: end_sequence - start_sequence + 1,
         start_action_state: previous_block_actions_state,
         end_action_state: actions_state,
         state_data_availability: option::none(),
@@ -499,18 +518,16 @@ public(package) fun create_block_internal(
     event::emit(BlockEvent {
         address: block.id.to_address(),
         block_number,
-        block_sequence,
+        start_sequence,
+        end_sequence,
         name,
         timestamp,
         block_state: block_state_address,
         previous_block_address,
         time_since_last_block,
-        number_of_transactions: vector::length(&sequences),
-        sequences,
+        number_of_transactions: end_sequence - start_sequence + 1,
         start_action_state: previous_block_actions_state,
         end_action_state: actions_state,
-        state_data_availability: block.state_data_availability,
-        proof_data_availability: option::none(),
         proof_calculation: proof_calculation_address,
     });
     transfer::transfer(block, ctx.sender());
@@ -522,23 +539,6 @@ public fun update_block_state_data_availability(
     state_data_availability: String,
 ) {
     block.state_data_availability = option::some(state_data_availability);
-    event::emit(BlockEvent {
-        address: block.id.to_address(),
-        block_number: block.block_number,
-        block_sequence: block.block_sequence,
-        name: block.name,
-        timestamp: block.timestamp,
-        block_state: block.block_state_address,
-        previous_block_address: block.previous_block_address,
-        time_since_last_block: block.time_since_last_block,
-        number_of_transactions: vector::length(&block.sequences),
-        sequences: block.sequences,
-        start_action_state: block.start_action_state,
-        end_action_state: block.end_action_state,
-        state_data_availability: block.state_data_availability,
-        proof_data_availability: block.proof_data_availability,
-        proof_calculation: block.proof_calculation_address,
-    });
     event::emit(DataAvailabilityEvent {
         block_number: block.block_number,
         state_data_availability: block.state_data_availability,
@@ -551,23 +551,6 @@ public fun update_block_proof_data_availability(
     proof_data_availability: String,
 ) {
     block.proof_data_availability = option::some(proof_data_availability);
-    event::emit(BlockEvent {
-        address: block.id.to_address(),
-        block_number: block.block_number,
-        block_sequence: block.block_sequence,
-        name: block.name,
-        timestamp: block.timestamp,
-        block_state: block.block_state_address,
-        previous_block_address: block.previous_block_address,
-        time_since_last_block: block.time_since_last_block,
-        number_of_transactions: vector::length(&block.sequences),
-        sequences: block.sequences,
-        start_action_state: block.start_action_state,
-        end_action_state: block.end_action_state,
-        state_data_availability: block.state_data_availability,
-        proof_data_availability: block.proof_data_availability,
-        proof_calculation: block.proof_calculation_address,
-    });
     event::emit(DataAvailabilityEvent {
         block_number: block.block_number,
         state_data_availability: block.state_data_availability,
@@ -577,22 +560,10 @@ public fun update_block_proof_data_availability(
 
 public fun update_block_mina_tx_hash(block: &mut Block, mina_tx_hash: String) {
     block.mina_tx_hash = option::some(mina_tx_hash);
-    event::emit(BlockEvent {
-        address: block.id.to_address(),
+    event::emit(MinaTransactionEvent {
         block_number: block.block_number,
-        block_sequence: block.block_sequence,
-        name: block.name,
-        timestamp: block.timestamp,
-        block_state: block.block_state_address,
-        previous_block_address: block.previous_block_address,
-        time_since_last_block: block.time_since_last_block,
-        number_of_transactions: vector::length(&block.sequences),
-        sequences: block.sequences,
-        start_action_state: block.start_action_state,
-        end_action_state: block.end_action_state,
-        state_data_availability: block.state_data_availability,
-        proof_data_availability: block.proof_data_availability,
-        proof_calculation: block.proof_calculation_address,
+        mina_tx_hash,
+        mina_tx_included_in_block: block.mina_tx_included_in_block,
     });
 }
 
@@ -601,21 +572,9 @@ public fun update_block_mina_tx_included_in_block(
     mina_tx_included_in_block: u64,
 ) {
     block.mina_tx_included_in_block = option::some(mina_tx_included_in_block);
-    event::emit(BlockEvent {
-        address: block.id.to_address(),
+    event::emit(MinaTransactionEvent {
         block_number: block.block_number,
-        block_sequence: block.block_sequence,
-        name: block.name,
-        timestamp: block.timestamp,
-        block_state: block.block_state_address,
-        previous_block_address: block.previous_block_address,
-        time_since_last_block: block.time_since_last_block,
-        number_of_transactions: vector::length(&block.sequences),
-        sequences: block.sequences,
-        start_action_state: block.start_action_state,
-        end_action_state: block.end_action_state,
-        state_data_availability: block.state_data_availability,
-        proof_data_availability: block.proof_data_availability,
-        proof_calculation: block.proof_calculation_address,
+        mina_tx_hash: *block.mina_tx_hash.borrow(),
+        mina_tx_included_in_block: block.mina_tx_included_in_block,
     });
 }

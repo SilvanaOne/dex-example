@@ -7,6 +7,7 @@ import {
   fetchDexAccount,
   fetchSequenceData,
   fetchSuiObject,
+  fetchBlockProofs,
 } from "../src/fetch.js";
 import { proveSequence } from "../src/prove.js";
 import { SequenceState } from "../src/contracts/rollup.js";
@@ -37,6 +38,13 @@ describe("Fetch DEX users accounts", async () => {
     }
   });
 
+  it("should fetch block proofs", async () => {
+    const blockProofs = await fetchBlockProofs({
+      blockNumber: 1,
+    });
+    console.log("block proofs", blockProofs);
+  });
+
   it.skip("should fetch user", async () => {
     const user = await fetchSuiObject(
       "0x33ac72049a5c6c89cf022439c1b20e7857665911581bc9e53edbe565745d2e2d"
@@ -54,7 +62,7 @@ describe("Fetch DEX users accounts", async () => {
     console.log("alice account", aliceAccount);
   });
 
-  it("should fetch sequence data", async () => {
+  it.skip("should fetch sequence data", async () => {
     console.time("fetchSequenceData");
     const sequenceData = await fetchSequenceData({
       sequence: 11,
@@ -73,7 +81,7 @@ describe("Fetch DEX users accounts", async () => {
     const str = sequenceData.toJSON();
     const state = await SequenceState.fromJSON(str);
     assert.deepEqual(state.blockNumber, sequenceData.blockNumber);
-    assert.deepEqual(state.sequence, sequenceData.sequence);
+    assert.deepEqual(state.sequences, sequenceData.sequences);
     assert.deepEqual(
       state.dexState.toRollupData(),
       sequenceData.dexState.toRollupData()

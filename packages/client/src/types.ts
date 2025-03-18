@@ -62,18 +62,18 @@ export interface BlockState {
   id: string;
   name: string;
   block_number: number;
-  block_sequence: number;
+  sequence: number;
   state: Record<string, UserTradingAccount>;
 }
 
 export interface Block {
   name: string;
   block_number: number;
-  block_sequence: number;
+  start_sequence: number;
+  end_sequence: number;
   timestamp: number;
   time_since_last_block: number;
   number_of_transactions: number;
-  sequences: number[];
   start_action_state: number[];
   end_action_state: number[];
   state_data_availability: string | null;
@@ -90,11 +90,11 @@ export interface RawBlock {
   };
   name: string;
   block_number: string;
-  block_sequence: string;
+  start_sequence: string;
+  end_sequence: string;
   timestamp: string;
   time_since_last_block: string;
   number_of_transactions: string;
-  sequences: string[];
   start_action_state: number[];
   end_action_state: number[];
   state_data_availability: string | null;
@@ -109,7 +109,7 @@ export interface RawBlock {
       };
       name: string;
       block_number: string;
-      block_sequence: string;
+      sequence: string;
       state: {
         fields: {
           contents: object[];
@@ -126,11 +126,11 @@ export function rawBlockToBlock(raw: RawBlock): Block {
   return {
     name: raw.name,
     block_number: Number(raw.block_number),
-    block_sequence: Number(raw.block_sequence),
+    start_sequence: Number(raw.start_sequence),
+    end_sequence: Number(raw.end_sequence),
     timestamp: Number(raw.timestamp),
     time_since_last_block: Number(raw.time_since_last_block),
     number_of_transactions: Number(raw.number_of_transactions),
-    sequences: raw.sequences.map(Number),
     start_action_state: raw.start_action_state,
     end_action_state: raw.end_action_state,
     state_data_availability: raw.state_data_availability,
@@ -144,7 +144,7 @@ export function rawBlockToBlock(raw: RawBlock): Block {
       id: raw.block_state?.fields?.id?.id,
       name: raw.block_state?.fields?.name,
       block_number: Number(raw.block_state?.fields?.block_number),
-      block_sequence: Number(raw.block_state?.fields?.block_sequence),
+      sequence: Number(raw.block_state?.fields?.sequence),
       state: Object.fromEntries(
         blockState.map((item: any) => {
           if (!item?.fields?.key || typeof item?.fields?.key !== "string") {
@@ -418,10 +418,8 @@ export function convertRawOperationEvent(
 }
 
 export interface BlockData {
-  blockNumber: number;
-  blockID: string;
-  sequences: number[];
   block: Block;
+  blockID: string;
   events: OperationEvent[];
   map?: IndexedMapSerialized;
 }
@@ -434,29 +432,27 @@ export interface SequenceData {
 }
 
 export enum ProofStatus {
-  NOT_STARTED = 0,
-  IN_PROGRESS = 1,
-  CALCULATED = 2,
-  USED = 3,
-  FAILED = 4,
-  REJECTED = 5,
-  ABANDONED = 6,
+  CALCULATED = 1,
+  REJECTED = 2,
 }
 
 export interface ProofStatusData {
+  da_hash: string;
   status: ProofStatus;
-  timestamp?: number;
-  number_of_retries: number;
-  is_merge_proof: boolean;
-  sequence?: number;
-  operation: Operation;
-  input1?: number[];
-  input2?: number[];
-  proof?: {
-    publicInput: bigint[];
-    publicOutput: bigint[];
-    maxProofsVerified: number; // should be 2
-    proofDataAvailabilityHash: string;
-  };
-  prover?: string; // Sui addresses are represented as strings
+  timestamp: number;
+}
+
+export interface BlockProofs {
+  blockNumber: number;
+  blockProof: string;
+  startSequence: number;
+  endSequence?: number;
+  isFinished: boolean;
+  proofs: { sequences: number[]; status: ProofStatusData }[];
+}
+
+export interface MergeProofRequest {
+  blockNumber: number;
+  proof1: { sequences: number[]; status: ProofStatusData };
+  proof2: { sequences: number[]; status: ProofStatusData };
 }

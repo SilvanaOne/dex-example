@@ -217,7 +217,7 @@ public fun create_account(
 
     let operation = create_operation(&operationData);
 
-    dex.update_actions_state(operation.operation, operation.actionState);
+    dex.update_actions_state(operation.actionState);
 
     event::emit(OperationCreateAccountEvent {
         operation,
@@ -300,7 +300,7 @@ public fun bid(
     assert!(valid, EInvalidSignature);
 
     let operation = create_operation(&operationData);
-    dex.update_actions_state(operation.operation, operation.actionState);
+    dex.update_actions_state(operation.actionState);
 
     event::emit(OperationBidEvent {
         operation,
@@ -375,7 +375,7 @@ public fun ask(
     assert!(valid, EInvalidSignature);
 
     let operation = create_operation(&operationData);
-    dex.update_actions_state(operation.operation, operation.actionState);
+    dex.update_actions_state(operation.actionState);
 
     event::emit(OperationAskEvent {
         operation,
@@ -415,15 +415,10 @@ public fun trade(
         );
         assert!(quote_balance >= quoteTokenAmount, EInsufficientBalance);
         let new_bid_amount = bid_amount - baseTokenAmount;
-        let new_bid_price = if (new_bid_amount == 0) {
-            0
-        } else {
-            bid_price
-        };
         let new_base_balance = base_balance + baseTokenAmount;
         let new_quote_balance = quote_balance - quoteTokenAmount;
         buyerAccount.update_bid(
-            create_order(new_bid_amount, new_bid_price),
+            create_order(new_bid_amount, bid_price),
         );
         buyerAccount.update_base_balance(
             create_mina_balance(new_base_balance, 0, 0),
@@ -447,13 +442,8 @@ public fun trade(
         );
         assert!(base_balance >= baseTokenAmount, EInsufficientBalance);
         let new_ask_amount = ask_amount - baseTokenAmount;
-        let new_ask_price = if (new_ask_amount == 0) {
-            0
-        } else {
-            ask_price
-        };
         sellerAccount.update_ask(
-            create_order(new_ask_amount, new_ask_price),
+            create_order(new_ask_amount, ask_price),
         );
         sellerAccount.update_base_balance(
             create_mina_balance(base_balance - baseTokenAmount, 0, 0),
@@ -484,7 +474,7 @@ public fun trade(
         receiverNonce: option::some(buyerNonce),
     });
     let operation = create_operation(&operationData);
-    dex.update_actions_state(operation.operation, operation.actionState);
+    dex.update_actions_state(operation.actionState);
     let price = ((quoteTokenAmount as u128) * 1_000_000_000u128 / (baseTokenAmount as u128) as u64);
     dex.update_pool_last_price(price);
     event::emit(OperationTradeEvent {
@@ -578,7 +568,7 @@ public fun transfer(
     );
     assert!(valid, EInvalidSignature);
     let operation = create_operation(&operationData);
-    dex.update_actions_state(operation.operation, operation.actionState);
+    dex.update_actions_state(operation.actionState);
     event::emit(OperationTransferEvent {
         operation,
         details: ActionTransfer {

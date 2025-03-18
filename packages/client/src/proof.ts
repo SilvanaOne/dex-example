@@ -10,10 +10,26 @@ import { SequenceState } from "./contracts/rollup.js";
 const packageID = process.env.PACKAGE_ID;
 const dexID = process.env.DEX_ID;
 
+let proverSecretKey: string | undefined = undefined;
+
+export async function getProverSecretKey() {
+  if (proverSecretKey) {
+    return proverSecretKey;
+  }
+  const { secretKey } = await getKey({
+    secretKey: proverSecretKey,
+    name: "prover",
+  });
+  proverSecretKey = secretKey;
+  return secretKey;
+}
+
 export async function submitProof(params: {
   state: SequenceState;
+  mergedSequences1: number[];
+  mergedSequences2: number[];
 }): Promise<void> {
-  const { state } = params;
+  const { state, mergedSequences1, mergedSequences2 } = params;
   if (!packageID || !dexID) {
     throw new Error("PACKAGE_ID or DEX_ID is not set");
   }
@@ -22,21 +38,17 @@ export async function submitProof(params: {
   if (!proof) {
     throw new Error("Proof is not provided");
   }
-  // const publicInput = proof.publicInput.map((item: string) => BigInt(item));
-  // const publicOutput = proof.publicOutput.map((item: string) => BigInt(item));
-  // const maxProofsVerified = proof.maxProofsVerified;
-  // if (maxProofsVerified !== 2) {
-  //   throw new Error("Max proofs verified is not 2");
-  // }
-  const proverSecretKey: string = process.env.PROVER_SECRET_KEY!;
-  if (!proverSecretKey) {
-    throw new Error("PROVER_SECRET_KEY is not set");
-  }
 
-  const { address, keypair } = await getKey({
+  // const proverSecretKey: string = process.env.PROVER_SECRET_KEY!;
+  // if (!proverSecretKey) {
+  //   throw new Error("PROVER_SECRET_KEY is not set");
+  // }
+
+  const { address, keypair, secretKey } = await getKey({
     secretKey: proverSecretKey,
     name: "prover",
   });
+  proverSecretKey = secretKey;
 
   const blobData = state.toJSON();
   console.time("saveToWalrus");
@@ -57,13 +69,54 @@ export async function submitProof(params: {
   const proofArguments = [
     tx.object(dexID),
     tx.pure.u64(BigInt(state.blockNumber)),
-    tx.pure.vector("u64", [BigInt(state.sequence)]),
-    // tx.pure.vector("u256", publicInput),
-    // tx.pure.vector("u256", publicOutput),
-    // tx.pure.u8(maxProofsVerified),
+    tx.pure.vector("u64", state.sequences.map(BigInt)),
+    tx.pure.vector("u64", mergedSequences1.map(BigInt)),
+    tx.pure.vector("u64", mergedSequences2.map(BigInt)),
     tx.pure.string(blobId),
     tx.object(SUI_CLOCK_OBJECT_ID),
   ];
+
+  tx.moveCall({
+    package: packageID,
+    module: "main",
+    function: "submit_proof",
+    arguments: proofArguments,
+  });
+
+  tx.setSender(address);
+  tx.setGasBudget(200_000_000);
+  const signedTx = await tx.sign({ client: suiClient, signer: keypair });
+  const { digest } = await executeTx(signedTx);
+
+  // Wait for transaction to complete
+  const waitResult = await waitTx(digest);
+  if (waitResult.errors) {
+    console.log(`Errors for tx ${digest}:`, waitResult.errors);
+    throw new Error(`Failed to submit proof: ${waitResult.errors}`);
+  }
+  console.timeEnd("tx");
+  console.log("Proof submitted successfully:", digest);
+}
+
+export async function submitMinaTx(params: {
+  blockNumber: number;
+  minaTx: string;
+}): Promise<void> {
+  const { blockNumber, minaTx } = params;
+  if (!packageID || !dexID) {
+    throw new Error("PACKAGE_ID or DEX_ID is not set");
+  }
+
+  const { address, keypair, secretKey } = await getKey({
+    secretKey: proverSecretKey,
+    name: "prover",
+  });
+  proverSecretKey = secretKey;
+
+  console.time("tx");
+  const tx = new Transaction();
+
+  const proofArguments = [tx.object(dexID), tx.object(SUI_CLOCK_OBJECT_ID)];
 
   tx.moveCall({
     package: packageID,
