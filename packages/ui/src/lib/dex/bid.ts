@@ -15,10 +15,56 @@
 // if (!poolPublicKey) {
 //   throw new Error("POOL PUBLIC KEY is not set");
 // }
-// // export async function prepareBidPayload(params: {user: string,
-// //   amount: number,
-// //   price: number,
-// // }): Promise<string> {
+
+// export async function prepareBidPayload(params: {user: string,
+//   amount: number,
+//   price: number,
+// }): Promise<string> {
+//   const config = await getConfig();
+//   const u256 = await publicKeyToU256(params.user);
+//   const u256String = u256.toString();
+//   const packageID = config.dex_package;
+//   const dexID = config.dex_object;
+
+//   if (!packageID) {
+//     throw new Error("PACKAGE_ID is not set");
+//   }
+
+//   if (!dexID) {
+//     throw new Error("DEX_ID is not set");
+//   }
+
+//   const { address, keypair } = await getKey({
+//     secretKey: faucetSecretKey,
+//     name: "faucet",
+//   });
+
+//   const faucetU256 = await publicKeyToU256(faucetPublicKey);
+
+//   const faucetAccount = await fetchDexAccount({
+//     addressU256: faucetU256.toString(),
+//   });
+//   const userAccount = await fetchDexAccount({ addressU256: u256String });
+//   if (!faucetAccount || !userAccount) {
+//     throw new Error("Cannot fetch accounts");
+//   }
+//   let nonce = faucetAccount.nonce;
+
+//   const tx = new Transaction();
+
+//   const baseTokenAmount = 10_000_000_000n;
+//   const quoteTokenAmount = 20_000_000_000_000n;
+
+//   const faucetSignature = await signDexFields({
+//     minaPrivateKey: faucetPrivateKey,
+//     poolPublicKey: poolPublicKey,
+//     operation: Operation.TRANSFER,
+//     nonce,
+//     baseTokenAmount,
+//     quoteTokenAmount,
+//     receiverPublicKey: user,
+//   });
+// }
 
 // export async function bid(params: {user: string,
 //   amount: number,
