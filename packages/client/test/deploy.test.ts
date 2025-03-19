@@ -16,7 +16,7 @@ import { deployMinaContract } from "../src/deploy.js";
 import { BlockData } from "../src/types.js";
 import { fetchBlock } from "../src/fetch.js";
 import { DEXMap } from "../src/contracts/provable-types.js";
-import { serializeIndexedMap } from "@silvana-one/storage";
+import { serializeIndexedMap, sleep } from "@silvana-one/storage";
 import { saveToWalrus, readFromWalrus } from "../src/walrus.js";
 
 const userSecretKeys: string[] = [
@@ -288,6 +288,7 @@ describe("Deploy DEX contracts", async () => {
   });
 
   it("should save block and block state to Walrus", async () => {
+    await sleep(5000);
     if (!blockID) {
       throw new Error("block ID is not set");
     }
@@ -309,6 +310,7 @@ describe("Deploy DEX contracts", async () => {
     console.log(`block blobId:`, blockBlobId);
   });
   it("should read block and block state from Walrus", async () => {
+    await sleep(5000);
     if (!blockBlobId) {
       throw new Error("block blobId is not set");
     }
@@ -337,6 +339,10 @@ describe("Deploy DEX contracts", async () => {
       throw new Error("DEX_ID is not set");
     }
 
+    if (!adminID) {
+      throw new Error("ADMIN_ID is not set");
+    }
+
     if (!blockID) {
       throw new Error("BLOCK_ID is not set");
     }
@@ -355,14 +361,22 @@ describe("Deploy DEX contracts", async () => {
     });
 
     /*
-    public fun update_block_state_data_availability(
+public fun update_block_state_data_availability(
+    admin: &Admin,
     block: &mut Block,
     state_data_availability: String,
+    clock: &Clock,
+    ctx: &mut TxContext,
     */
 
     const tx = new Transaction();
 
-    const blockArguments = [tx.object(blockID), tx.pure.string(blockBlobId)];
+    const blockArguments = [
+      tx.object(adminID),
+      tx.object(blockID),
+      tx.pure.string(blockBlobId),
+      tx.object(SUI_CLOCK_OBJECT_ID),
+    ];
 
     tx.moveCall({
       package: packageID,
@@ -371,9 +385,20 @@ describe("Deploy DEX contracts", async () => {
       arguments: blockArguments,
     });
 
+    /*
+        public fun update_block_mina_tx_hash(
+            admin: &Admin,
+            block: &mut Block,
+            mina_tx_hash: String,
+            clock: &Clock,
+            ctx: &mut TxContext,
+    */
+
     const minaTxHashArguments = [
+      tx.object(adminID),
       tx.object(blockID),
       tx.pure.string(minaContractHash),
+      tx.object(SUI_CLOCK_OBJECT_ID),
     ];
 
     tx.moveCall({

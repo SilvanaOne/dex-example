@@ -28,6 +28,7 @@ describe("Merge proofs", async () => {
     await getProverSecretKey();
     let previous_last_proved_block_number = 0;
     let previous_current_block_number = 0;
+    let merged = false;
     while (true) {
       const dex = await fetchDex();
       const last_proved_block_number = Number(dex.last_proved_block_number);
@@ -80,6 +81,8 @@ describe("Merge proofs", async () => {
             mergedSequences1: mergeProofRequest.proof1.sequences,
             mergedSequences2: mergeProofRequest.proof2.sequences,
           });
+          merged = true;
+          Memory.info(`Merged proofs for block ${blockNumber}`);
           break;
         }
       }

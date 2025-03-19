@@ -32,7 +32,6 @@ public struct Block has key, store {
     end_sequence: u64,
     block_state: BlockState,
     block_state_address: address,
-    timestamp: u64,
     time_since_last_block: u64,
     number_of_transactions: u64,
     start_action_state: vector<u8>,
@@ -40,9 +39,14 @@ public struct Block has key, store {
     state_data_availability: Option<String>,
     proof_data_availability: Option<String>,
     mina_tx_hash: Option<String>,
-    mina_tx_included_in_block: Option<u64>,
+    mina_tx_included_in_block: bool,
     previous_block_address: Option<address>,
     proof_calculation_address: address,
+    created_at: u64,
+    state_calculated_at: Option<u64>,
+    proved_at: Option<u64>,
+    sent_to_mina_at: Option<u64>,
+    settled_on_mina_at: Option<u64>,
 }
 
 public struct BlockEvent has copy, drop {
@@ -65,12 +69,16 @@ public struct DataAvailabilityEvent has copy, drop {
     block_number: u64,
     state_data_availability: Option<String>,
     proof_data_availability: Option<String>,
+    state_calculated_at: u64,
+    proof_calculated_at: Option<u64>,
 }
 
 public struct MinaTransactionEvent has copy, drop {
     block_number: u64,
     mina_tx_hash: String,
-    mina_tx_included_in_block: Option<u64>,
+    mina_tx_included_in_block: bool,
+    sent_to_mina_at: u64,
+    settled_on_mina_at: Option<u64>,
 }
 
 public struct DEX has key, store {
@@ -502,7 +510,6 @@ public(package) fun create_block_internal(
         end_sequence,
         block_state,
         block_state_address,
-        timestamp,
         time_since_last_block,
         number_of_transactions: end_sequence - start_sequence + 1,
         start_action_state: previous_block_actions_state,
@@ -510,9 +517,14 @@ public(package) fun create_block_internal(
         state_data_availability: option::none(),
         proof_data_availability: option::none(),
         mina_tx_hash: option::none(),
-        mina_tx_included_in_block: option::none(),
+        mina_tx_included_in_block: false,
         previous_block_address,
         proof_calculation_address,
+        created_at: timestamp,
+        state_calculated_at: option::none(),
+        proved_at: option::none(),
+        sent_to_mina_at: option::none(),
+        settled_on_mina_at: option::none(),
     };
 
     event::emit(BlockEvent {
@@ -535,46 +547,80 @@ public(package) fun create_block_internal(
 }
 
 public fun update_block_state_data_availability(
+    admin: &Admin,
     block: &mut Block,
     state_data_availability: String,
+    clock: &Clock,
+    ctx: &mut TxContext,
 ) {
+    assert!(get_admin_address(admin) == ctx.sender(), ENotAuthorized);
+    let timestamp = clock.timestamp_ms();
     block.state_data_availability = option::some(state_data_availability);
+    block.state_calculated_at = option::some(timestamp);
     event::emit(DataAvailabilityEvent {
         block_number: block.block_number,
         state_data_availability: block.state_data_availability,
         proof_data_availability: block.proof_data_availability,
+        state_calculated_at: timestamp,
+        proof_calculated_at: option::none(),
     });
 }
 
 public fun update_block_proof_data_availability(
+    admin: &Admin,
     block: &mut Block,
     proof_data_availability: String,
+    clock: &Clock,
+    ctx: &mut TxContext,
 ) {
+    assert!(get_admin_address(admin) == ctx.sender(), ENotAuthorized);
+    let timestamp = clock.timestamp_ms();
     block.proof_data_availability = option::some(proof_data_availability);
+    block.proved_at = option::some(timestamp);
     event::emit(DataAvailabilityEvent {
         block_number: block.block_number,
         state_data_availability: block.state_data_availability,
         proof_data_availability: block.proof_data_availability,
+        state_calculated_at: *block.state_calculated_at.borrow(),
+        proof_calculated_at: option::some(timestamp),
     });
 }
 
-public fun update_block_mina_tx_hash(block: &mut Block, mina_tx_hash: String) {
+public fun update_block_mina_tx_hash(
+    admin: &Admin,
+    block: &mut Block,
+    mina_tx_hash: String,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    assert!(get_admin_address(admin) == ctx.sender(), ENotAuthorized);
+    let timestamp = clock.timestamp_ms();
     block.mina_tx_hash = option::some(mina_tx_hash);
+    block.sent_to_mina_at = option::some(timestamp);
     event::emit(MinaTransactionEvent {
         block_number: block.block_number,
         mina_tx_hash,
-        mina_tx_included_in_block: block.mina_tx_included_in_block,
+        mina_tx_included_in_block: false,
+        sent_to_mina_at: timestamp,
+        settled_on_mina_at: option::none(),
     });
 }
 
 public fun update_block_mina_tx_included_in_block(
+    admin: &Admin,
     block: &mut Block,
-    mina_tx_included_in_block: u64,
+    clock: &Clock,
+    ctx: &mut TxContext,
 ) {
-    block.mina_tx_included_in_block = option::some(mina_tx_included_in_block);
+    assert!(get_admin_address(admin) == ctx.sender(), ENotAuthorized);
+    let timestamp = clock.timestamp_ms();
+    block.mina_tx_included_in_block = true;
+    block.settled_on_mina_at = option::some(timestamp);
     event::emit(MinaTransactionEvent {
         block_number: block.block_number,
         mina_tx_hash: *block.mina_tx_hash.borrow(),
-        mina_tx_included_in_block: block.mina_tx_included_in_block,
+        mina_tx_included_in_block: true,
+        sent_to_mina_at: *block.sent_to_mina_at.borrow(),
+        settled_on_mina_at: option::some(timestamp),
     });
 }

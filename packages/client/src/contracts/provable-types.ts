@@ -36,6 +36,7 @@ export class RollupDEXState extends Struct({
   length: Field,
   actionState: Field, // TODO: check in production
   sequence: UInt64,
+  blockNumber: UInt64,
 }) {
   static assertEquals(a: RollupDEXState, b: RollupDEXState) {
     a.poolPublicKey.assertEquals(b.poolPublicKey);
@@ -43,6 +44,7 @@ export class RollupDEXState extends Struct({
     a.length.assertEquals(b.length);
     a.actionState.assertEquals(b.actionState);
     a.sequence.assertEquals(b.sequence);
+    a.blockNumber.assertEquals(b.blockNumber);
   }
 
   static fromRollupData(rollupData: DEXState): RollupDEXState {
@@ -52,6 +54,7 @@ export class RollupDEXState extends Struct({
       length: Field.from(rollupData.length),
       actionState: Field.from(rollupData.actionState),
       sequence: UInt64.from(rollupData.sequence),
+      blockNumber: UInt64.from(rollupData.blockNumber),
     });
   }
 
@@ -62,6 +65,7 @@ export class RollupDEXState extends Struct({
       length: this.length.toBigInt(),
       actionState: this.actionState.toBigInt(),
       sequence: this.sequence.toBigInt(),
+      blockNumber: this.blockNumber.toBigInt(),
     } as DEXState;
   }
 }

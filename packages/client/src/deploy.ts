@@ -76,7 +76,7 @@ export async function deployMinaContract(params: {
   const tx = await Mina.transaction(
     {
       sender: admin,
-      fee: 100_000_000,
+      fee: 300_000_000,
       memo: `Deploy DEX Contract`,
     },
     async () => {
@@ -109,6 +109,9 @@ export async function checkMinaContractDeployment(params: {
   contractAddress: string;
   adminPublicKey: string;
 }): Promise<boolean> {
+  console.log("chain", chain);
+  console.log("params", params);
+  await initBlockchain(chain);
   const { contractAddress, adminPublicKey } = params;
   const contractPublicKey = PublicKey.fromBase58(contractAddress);
   const contract = new DEXContract(contractPublicKey);

@@ -103,13 +103,6 @@ describe("DEX Block", async () => {
     }
 
     const blockData = await fetchBlock({ blockID });
-    // console.log("blockData", blockData);
-    // console.log("blockData block", blockData.block);
-    // console.log("blockData block_state", blockData.block.block_state);
-    console.log(
-      "blockData block_state state",
-      blockData.block.block_state.state
-    );
     const sequenceData = await fetchSequenceData({
       sequence: blockData.block.block_state.sequence,
       blockNumber: blockData.block.block_number,
@@ -117,19 +110,9 @@ describe("DEX Block", async () => {
     if (!sequenceData) {
       throw new Error("sequence data is not set");
     }
-    console.log(
-      "sequenceData",
-      Object.entries(sequenceData.accounts).forEach(([key, value]) => {
-        console.log("key", key);
-        console.log("value", value.toAccountData());
-      })
-    );
     const root = await calculateStateRoot({
       state: blockData.block.block_state.state,
     });
-    console.log("root", root);
-    console.log("sequenceData.map.root", sequenceData.map.root.toBigInt());
-    console.log("map length", sequenceData.map.length.toBigInt());
     if (root !== sequenceData.map.root.toBigInt()) {
       throw new Error("state root does not match");
     }
@@ -170,6 +153,10 @@ describe("DEX Block", async () => {
       throw new Error("DEX_ID is not set");
     }
 
+    if (!adminID) {
+      throw new Error("ADMIN_ID is not set");
+    }
+
     if (!blockID) {
       throw new Error("BLOCK_ID is not set");
     }
@@ -184,14 +171,22 @@ describe("DEX Block", async () => {
     });
 
     /*
-    public fun update_block_state_data_availability(
+public fun update_block_state_data_availability(
+    admin: &Admin,
     block: &mut Block,
     state_data_availability: String,
+    clock: &Clock,
+    ctx: &mut TxContext,
     */
 
     const tx = new Transaction();
 
-    const blockArguments = [tx.object(blockID), tx.pure.string(blockBlobId)];
+    const blockArguments = [
+      tx.object(adminID),
+      tx.object(blockID),
+      tx.pure.string(blockBlobId),
+      tx.object(SUI_CLOCK_OBJECT_ID),
+    ];
 
     tx.moveCall({
       package: packageID,

@@ -6,6 +6,7 @@ import {
   AccountUpdate,
   PublicKey,
   Cache,
+  verify,
 } from "o1js";
 import { DEXContract } from "./contracts/contract.js";
 import { DEXProof, DEXProgram } from "./contracts/rollup.js";
@@ -18,7 +19,7 @@ import {
   pinJSON,
 } from "@silvana-one/mina-utils";
 import { getProverSecretKey } from "./proof.js";
-
+import { submitMinaTx } from "./proof.js";
 const chain = process.env.MINA_CHAIN! as
   | "local"
   | "devnet"
@@ -34,14 +35,17 @@ if (
 }
 
 const expectedTxStatus = "pending";
-let vk: VerificationKey | undefined = undefined;
+let vkContract: VerificationKey | undefined = undefined;
+let vkProgram: VerificationKey | undefined = undefined;
+let nonce: number = 0;
 
 export async function settleMinaContract(params: {
   poolPublicKey: string;
   adminPrivateKey: string;
   proof: DEXProof;
+  blockID: string;
 }): Promise<string> {
-  const { proof } = params;
+  const { proof, blockID } = params;
   console.time("settle");
   await getProverSecretKey();
   await initBlockchain(chain);
@@ -64,13 +68,17 @@ export async function settleMinaContract(params: {
 
   console.log("Compiling DEX Contract");
   console.time("compile");
-  if (!vk) {
+  if (!vkContract) {
     const cache: Cache = Cache.FileSystem("./cache");
-    await DEXProgram.compile({ cache });
-    const { verificationKey } = await DEXContract.compile({ cache });
-    vk = verificationKey;
+    const { verificationKey: vkp } = await DEXProgram.compile({ cache });
+    vkProgram = vkp;
+    const { verificationKey: vkc } = await DEXContract.compile({ cache });
+    vkContract = vkc;
   }
-  if (vk.data !== verificationKey.data) {
+  if (
+    vkContract.data !== verificationKey.data ||
+    vkContract.hash.toJSON() !== verificationKey.hash.toJSON()
+  ) {
     throw new Error("Verification key mismatch");
   }
   console.timeEnd("compile");
@@ -89,20 +97,41 @@ export async function settleMinaContract(params: {
     await accountBalanceMina(admin)
   );
 
-  await fetchMinaAccount({ publicKey: admin, force: true });
-  await fetchMinaAccount({ publicKey: pool, force: true });
   const dex = new DEXContract(pool);
   const txs_number = Number(
     proof.publicOutput.sequence.toBigInt() -
       proof.publicInput.sequence.toBigInt() +
       1n
   );
+  const blockNumber = Number(proof.publicInput.blockNumber.toBigInt());
+  console.log("blockNumber", blockNumber);
+  const memo = `Silvana DEX block ${blockNumber} (${txs_number} ${
+    txs_number === 1 ? "tx" : "txs"
+  })`.substring(0, 30);
+  console.log("memo", memo);
+
+  if (!vkProgram) {
+    throw new Error("Verification key is not set");
+  }
+
+  const ok = await verify(proof, vkProgram);
+  console.log("ok", ok);
+  if (!ok) {
+    throw new Error("Proof is not valid");
+  }
+
+  await fetchMinaAccount({ publicKey: admin, force: true });
+  await fetchMinaAccount({ publicKey: pool, force: true });
+
+  const adminNonce = Number(Mina.getAccount(admin).nonce.toBigint());
+  nonce = Math.max(nonce + 1, adminNonce);
 
   const tx = await Mina.transaction(
     {
       sender: admin,
-      fee: 100_000_000,
-      memo: `Settle DEX Contract (${txs_number} txs)`.substring(0, 30),
+      fee: 200_000_000,
+      memo,
+      nonce,
     },
     async () => {
       await dex.settle(proof);
@@ -112,7 +141,7 @@ export async function settleMinaContract(params: {
   const sentTx = await sendTx({
     tx: tx.sign([adminPrivateKey]),
     description: "settle",
-    wait: true,
+    wait: false,
     verbose: true,
   });
   if (sentTx?.status !== expectedTxStatus) {
@@ -121,5 +150,10 @@ export async function settleMinaContract(params: {
   }
   const hash = sentTx?.hash;
   console.timeEnd("settle");
+  await submitMinaTx({
+    blockNumber,
+    minaTx: hash,
+    blockID,
+  });
   return hash;
 }

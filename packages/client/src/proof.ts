@@ -9,8 +9,10 @@ import { SequenceState } from "./contracts/rollup.js";
 
 const packageID = process.env.PACKAGE_ID;
 const dexID = process.env.DEX_ID;
+const adminID = process.env.ADMIN_ID;
 
 let proverSecretKey: string | undefined = undefined;
+let adminSecretKey: string | undefined = process.env.ADMIN_SECRET_KEY;
 
 export async function getProverSecretKey() {
   if (proverSecretKey) {
@@ -101,27 +103,44 @@ export async function submitProof(params: {
 export async function submitMinaTx(params: {
   blockNumber: number;
   minaTx: string;
+  blockID: string;
 }): Promise<void> {
-  const { blockNumber, minaTx } = params;
+  console.log("Submitting mina tx hash to sui contract", params);
+  const { blockNumber, minaTx, blockID } = params;
   if (!packageID || !dexID) {
     throw new Error("PACKAGE_ID or DEX_ID is not set");
   }
+  if (!adminID) {
+    throw new Error("ADMIN_ID is not set");
+  }
 
-  const { address, keypair, secretKey } = await getKey({
-    secretKey: proverSecretKey,
-    name: "prover",
+  const { address, keypair } = await getKey({
+    secretKey: adminSecretKey,
+    name: "admin",
   });
-  proverSecretKey = secretKey;
 
   console.time("tx");
   const tx = new Transaction();
 
-  const proofArguments = [tx.object(dexID), tx.object(SUI_CLOCK_OBJECT_ID)];
+  /*
+      public fun update_block_mina_tx_hash(
+          admin: &Admin,
+          block: &mut Block,
+          mina_tx_hash: String,
+          clock: &Clock,
+          ctx: &mut TxContext,
+  */
+  const proofArguments = [
+    tx.object(adminID),
+    tx.object(blockID),
+    tx.pure.string(minaTx),
+    tx.object(SUI_CLOCK_OBJECT_ID),
+  ];
 
   tx.moveCall({
     package: packageID,
     module: "main",
-    function: "submit_proof",
+    function: "update_block_mina_tx_hash",
     arguments: proofArguments,
   });
 
@@ -134,8 +153,8 @@ export async function submitMinaTx(params: {
   const waitResult = await waitTx(digest);
   if (waitResult.errors) {
     console.log(`Errors for tx ${digest}:`, waitResult.errors);
-    throw new Error(`Failed to submit proof: ${waitResult.errors}`);
+    throw new Error(`Failed to submit mina tx: ${waitResult.errors}`);
   }
   console.timeEnd("tx");
-  console.log("Proof submitted successfully:", digest);
+  console.log("Mina tx submitted successfully:", digest);
 }

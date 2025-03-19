@@ -36,7 +36,7 @@ export class DEXContract extends SmartContract {
   @state(Field) length = State<Field>(Field(0));
   @state(Field) actionState = State<Field>(Field(0));
   @state(UInt64) sequence = State<UInt64>(UInt64.from(0));
-
+  @state(UInt64) blockNumber = State<UInt64>(UInt64.from(0));
   /**
    * Deploys the contract with initial settings.
    * @param props - Deployment properties including admin, upgradeAuthority, uri, canPause, and isPaused.
@@ -48,7 +48,7 @@ export class DEXContract extends SmartContract {
     this.length.set(newMap.length);
     this.actionState.set(Field(0)); // TODO: update in production
     this.sequence.set(UInt64.zero);
-
+    this.blockNumber.set(UInt64.zero);
     this.account.zkappUri.set(props.uri);
     this.account.permissions.set({
       ...Permissions.default(),
@@ -69,28 +69,26 @@ export class DEXContract extends SmartContract {
   };
 
   @method async settle(proof: DEXProof) {
+    proof.verify();
+    proof.publicInput.blockNumber.assertEquals(proof.publicOutput.blockNumber);
+
     const sender = this.sender.getUnconstrained();
     const senderUpdate = AccountUpdate.createSigned(sender);
     senderUpdate.body.useFullCommitment = Bool(true);
 
-    const sequence = this.sequence.getAndRequireEquals();
-    const actionState = this.actionState.getAndRequireEquals();
-    const root = this.root.getAndRequireEquals();
-    const length = this.length.getAndRequireEquals();
-
-    proof.publicInput.root.assertEquals(root);
-    proof.publicInput.length.assertEquals(length);
-    proof.publicInput.actionState.assertEquals(actionState);
-    proof.publicInput.sequence.assertEquals(sequence);
-    proof.publicInput.poolPublicKey.assertEquals(this.address);
-
-    proof.verify();
+    this.sequence.requireEquals(proof.publicInput.sequence);
+    this.actionState.requireEquals(proof.publicInput.actionState);
+    this.root.requireEquals(proof.publicInput.root);
+    this.length.requireEquals(proof.publicInput.length);
+    this.blockNumber.requireEquals(
+      proof.publicInput.blockNumber.sub(UInt64.from(1))
+    );
 
     this.sequence.set(proof.publicOutput.sequence);
     this.actionState.set(proof.publicOutput.actionState);
     this.root.set(proof.publicOutput.root);
     this.length.set(proof.publicOutput.length);
-
+    this.blockNumber.set(proof.publicOutput.blockNumber);
     this.emitEvent("settle", proof.publicOutput);
   }
 }

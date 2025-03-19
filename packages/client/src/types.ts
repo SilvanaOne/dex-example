@@ -80,7 +80,7 @@ export interface Block {
   proof_data_availability: string | null;
   previous_block_address: string;
   mina_tx_hash: string | null;
-  mina_tx_included_in_block: number | null;
+  mina_tx_included_in_block: boolean;
   block_state: BlockState;
 }
 
@@ -101,7 +101,7 @@ export interface RawBlock {
   proof_data_availability: string | null;
   previous_block_address: string;
   mina_tx_hash: string | null;
-  mina_tx_included_in_block: string | null;
+  mina_tx_included_in_block: boolean;
   block_state: {
     fields: {
       id: {
@@ -137,9 +137,7 @@ export function rawBlockToBlock(raw: RawBlock): Block {
     proof_data_availability: raw.proof_data_availability,
     previous_block_address: raw.previous_block_address,
     mina_tx_hash: raw.mina_tx_hash,
-    mina_tx_included_in_block: raw.mina_tx_included_in_block
-      ? Number(raw.mina_tx_included_in_block)
-      : null,
+    mina_tx_included_in_block: raw.mina_tx_included_in_block,
     block_state: {
       id: raw.block_state?.fields?.id?.id,
       name: raw.block_state?.fields?.name,
@@ -222,6 +220,7 @@ export interface DEXState {
   length: bigint;
   actionState: bigint;
   sequence: bigint;
+  blockNumber: bigint;
 }
 
 export interface OperationData {
@@ -434,6 +433,7 @@ export interface SequenceData {
 export enum ProofStatus {
   CALCULATED = 1,
   REJECTED = 2,
+  USED = 3,
 }
 
 export interface ProofStatusData {

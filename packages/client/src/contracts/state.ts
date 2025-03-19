@@ -36,7 +36,6 @@ export async function calculateStateRoot(params: {
   const { state } = params;
   const map = new DEXMap();
   for (const [key, value] of Object.entries(state)) {
-    console.log("key", key);
     const mapKey = Poseidon.hashPacked(PublicKey, PublicKey.fromBase58(key));
     const mapValue = RollupUserTradingAccount.fromAccountData(value).hash();
     map.set(mapKey, mapValue);
@@ -93,6 +92,7 @@ export async function calculateState(params: {
     length: map.length.toBigInt(),
     actionState: 0n,
     sequence: BigInt(block.block_state.sequence),
+    blockNumber: BigInt(blockNumber),
   };
   let rollupDexState = RollupDEXState.fromRollupData(dexState);
   const accounts: Record<string, RollupUserTradingAccount> = {};

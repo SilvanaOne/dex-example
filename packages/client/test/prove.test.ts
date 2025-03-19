@@ -137,7 +137,10 @@ async function proveSequenceInternal({
     sequence,
     blockNumber,
   });
-  if (proof?.status !== ProofStatus.CALCULATED) {
+  if (
+    proof?.status !== ProofStatus.CALCULATED &&
+    proof?.status !== ProofStatus.USED
+  ) {
     console.log("Calculating proof:", {
       sequence,
       blockNumber,

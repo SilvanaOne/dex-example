@@ -328,6 +328,7 @@ let dexState = new RollupDEXState({
   length: maps[0].length,
   actionState: Field(0),
   sequence: UInt64.from(0),
+  blockNumber: UInt64.from(0),
 });
 
 describe("Circuits", async () => {

@@ -82,6 +82,7 @@ export const DEXProgram = ZkProgram({
             length: map.length,
             actionState: input.actionState,
             sequence: input.sequence.add(1),
+            blockNumber: input.blockNumber,
           }),
           auxiliaryOutput: new AccountAuxiliaryOutput({ map, account }),
         };
@@ -135,6 +136,7 @@ export const DEXProgram = ZkProgram({
             length: map.length,
             actionState: input.actionState,
             sequence: input.sequence.add(1),
+            blockNumber: input.blockNumber,
           }),
           auxiliaryOutput: new AccountAuxiliaryOutput({ map, account }),
         };
@@ -185,6 +187,7 @@ export const DEXProgram = ZkProgram({
             length: map.length,
             actionState: input.actionState,
             sequence: input.sequence.add(1),
+            blockNumber: input.blockNumber,
           }),
           auxiliaryOutput: new AccountAuxiliaryOutput({ map, account }),
         };
@@ -279,6 +282,7 @@ export const DEXProgram = ZkProgram({
             length: map.length,
             actionState: input.actionState,
             sequence: input.sequence.add(1),
+            blockNumber: input.blockNumber,
           }),
           auxiliaryOutput: new TradeAuxiliaryOutput({ map, buyer, seller }),
         };
@@ -382,6 +386,7 @@ export const DEXProgram = ZkProgram({
             length: map.length,
             actionState: input.actionState,
             sequence: input.sequence.add(1),
+            blockNumber: input.blockNumber,
           }),
           auxiliaryOutput: new TransferAuxiliaryOutput({
             map,
