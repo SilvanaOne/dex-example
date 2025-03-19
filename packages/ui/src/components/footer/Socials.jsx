@@ -1,4 +1,4 @@
-import { socials } from "@/data/socials";
+import { socials } from "./socials";
 
 export default function Socials() {
   return (
