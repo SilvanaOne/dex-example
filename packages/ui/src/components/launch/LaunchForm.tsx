@@ -22,6 +22,12 @@ import { CollectionInfo } from "@silvana-one/api";
 import { algoliaGetCollectionList } from "@/lib/search";
 const DEBUG = process.env.NEXT_PUBLIC_DEBUG === "true";
 
+function formatBalance(num: number | undefined): string {
+  if (num === undefined) return "-";
+  const fixed = num.toFixed(2);
+  return fixed.endsWith(".00") ? fixed.slice(0, -3) : fixed;
+}
+
 export function LaunchForm({
   onLaunch,
 }: {
@@ -164,8 +170,8 @@ export function LaunchForm({
   }, []);
 
   const generateRandomData = () => {
-    setAmount(Math.floor(Math.random() * 30)/10);
-    setPrice(Math.floor(Math.random() * 500)+1750);
+    setAmount(Math.floor(Math.random() * 30) / 10);
+    setPrice(Math.floor(Math.random() * 500) + 1750);
     setDescription(randomText());
     setImageURL(randomImage());
     if (orderType === "buy") {
@@ -243,21 +249,19 @@ export function LaunchForm({
               </label>
               <div className="flex rounded-lg border border-jacarta-100 bg-white dark:border-jacarta-600 dark:bg-jacarta-700">
                 <button
-                  className={`flex-1 rounded-l-lg py-3 px-4 text-center ${
-                    orderType === "buy"
+                  className={`flex-1 rounded-l-lg py-3 px-4 text-center ${orderType === "buy"
                       ? "bg-accent text-white"
                       : "hover:bg-jacarta-50 dark:text-jacarta-300 dark:hover:bg-jacarta-600"
-                  }`}
+                    }`}
                   onClick={() => setOrderType("buy")}
                 >
                   Buy
                 </button>
                 <button
-                  className={`flex-1 rounded-r-lg py-3 px-4 text-center ${
-                    orderType === "sell"
+                  className={`flex-1 rounded-r-lg py-3 px-4 text-center ${orderType === "sell"
                       ? "bg-accent text-white"
                       : "hover:bg-jacarta-50 dark:text-jacarta-300 dark:hover:bg-jacarta-600"
-                  }`}
+                    }`}
                   onClick={() => setOrderType("sell")}
                 >
                   Sell
@@ -287,38 +291,38 @@ export function LaunchForm({
             )} */}
 
 
-            {((orderType === "sell" ) ||
+            {((orderType === "sell") ||
               orderType === "buy") && (
-              <>
-                {/* Token amount */}
-                <div className="mb-6">
-                  <label
-                    htmlFor="token-amount"
-                    className="mb-1 block font-display text-sm text-jacarta-700 dark:text-white"
-                  >
-                    {orderType === "buy"
-                      ? "Amount to buy"
-                      : "Amount to sell"}
-                    <span className="text-red">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    id="token-amount"
-                    className="w-full rounded-lg border-jacarta-100 py-3 hover:ring-2 hover:ring-accent/10 focus:ring-accent dark:border-jacarta-600 dark:bg-jacarta-700 dark:text-white dark:placeholder:text-jacarta-300"
-                    placeholder={
-                      orderType === "buy"
-                        ? "Enter amount to buy"
-                        : "Enter amount to sell"
-                    }
-                    required
-                    autoComplete="off"
-                    value={amount}
-                    onChange={(e) => {
-                      const input = e.target as HTMLInputElement;
-                      setAmount(Number(input.value));
-                    }}
-                  />
-                </div>
+                <>
+                  {/* Token amount */}
+                  <div className="mb-6">
+                    <label
+                      htmlFor="token-amount"
+                      className="mb-1 block font-display text-sm text-jacarta-700 dark:text-white"
+                    >
+                      {orderType === "buy"
+                        ? "Amount to buy"
+                        : "Amount to sell"}
+                      <span className="text-red">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      id="token-amount"
+                      className="w-full rounded-lg border-jacarta-100 py-3 hover:ring-2 hover:ring-accent/10 focus:ring-accent dark:border-jacarta-600 dark:bg-jacarta-700 dark:text-white dark:placeholder:text-jacarta-300"
+                      placeholder={
+                        orderType === "buy"
+                          ? "Enter amount to buy"
+                          : "Enter amount to sell"
+                      }
+                      required
+                      autoComplete="off"
+                      value={amount}
+                      onChange={(e) => {
+                        const input = e.target as HTMLInputElement;
+                        setAmount(Number(input.value));
+                      }}
+                    />
+                  </div>
 
 
 
@@ -345,7 +349,7 @@ export function LaunchForm({
                     />
                   </div>
 
-{/* 
+                  {/* 
                
                 <div className="mb-6">
                   <label className="mb-1 block font-display text-sm text-jacarta-700 dark:text-white">
@@ -419,106 +423,188 @@ export function LaunchForm({
                   />
                 </div> */}
 
-                {/* Wallet address */}
-                <div className="mb-6">
-                  <label className="mb-1 block font-display text-sm text-jacarta-700 dark:text-white">
-                    Your Wallet Address<span className="text-red">*</span>
-                  </label>
-                  <button
-                    className={`js-copy-clipboard flex w-full select-none items-center rounded-lg border bg-white py-3 px-4 hover:bg-jacarta-50 dark:bg-jacarta-700 dark:text-jacarta-300 ${
-                      addressValid
-                        ? "border-jacarta-100 dark:border-jacarta-600"
-                        : "border-2 border-red"
-                    }`}
-                    id="admin-address"
-                    // data-tippy-content="Copy"
-                    onClick={() => {
-                      navigator.clipboard.writeText(adminAddress ?? "");
-                    }}
-                  >
-                    <span>{shortenString(adminAddress, 14) ?? ""}</span>
-
-                    <div className="ml-auto mb-px h-4 w-4 fill-jacarta-500 dark:fill-jacarta-300">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        width="15"
-                        height="16"
-                      >
-                        <path fill="none" d="M0 0h24v24H0z"></path>
-                        <path d="M7 7V3a1 1 0 0 1 1-1h13a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-4v3.993c0 .556-.449 1.007-1.007 1.007H3.007A1.006 1.006 0 0 1 2 20.993l.003-12.986C2.003 7.451 2.452 7 3.01 7H7zm2 0h6.993C16.549 7 17 7.449 17 8.007V15h3V4H9v3zM4.003 9L4 20h11V9H4.003z"></path>
-                      </svg>
-                    </div>
-                  </button>
-                </div>
-
-                {/* <Tippy content={launchTip}> */}
-                <button
-                  onClick={launchToken}
-                  className={`rounded-full py-3 px-8 text-center font-semibold transition-all ${
-                    buttonDisabled && false // TODO: remove this in production
-                      ? "bg-jacarta-300 text-white cursor-not-allowed"
-                      : "bg-accent text-white shadow-accent-volume hover:bg-accent-dark"
-                  }`}
-                >
-                  {addressValid
-                    ? buttonDisabled
-                      ? "Generate random data" // TODO: remove this in production
-                      : orderType === "buy"
-                      ? "Buy"
-                      : "Sell"
-                    : "Create account"}
-                </button>
-              </>
-            )}
-            {/* </Tippy> */}
-          </div>
-          {/* {((orderType === "sell" && collectionAddress) ||
-            orderType === "buy") && (
-            <>
-              <div className="mb-12 md:w-1/2 md:pr-8">
-                <div className="mb-6 flex space-x-5 md:pl-8 shrink-0">
-                  <FileUpload
-                    setImage={setImage}
-                    setImageURL={setImageURL}
-                    url={imageURL}
-                    label={
-                      orderType === "buy"
-                        ? "NFT collection image"
-                        : "NFT image"
-                    }
-                  />
-                </div>
-                {imageError && (
-                  <div className="mb-6 flex space-x-5 md:pl-8 shrink-0">
-                    <p className="text-red">{imageError}</p>
-                  </div>
-                )}
-                {price && amount && address && !imageError && (
-                  <div className="mb-6 flex space-x-5 md:pl-8 shrink-0">
+                  {/* Wallet address */}
+                  <div className="mb-6">
+                    <label className="mb-1 block font-display text-sm text-jacarta-700 dark:text-white">
+                      Your Wallet Address<span className="text-red">*</span>
+                    </label>
                     <button
-                      onClick={generateImageWithAI}
-                      disabled={imageGenerating || imageError !== undefined}
-                      className="rounded-full bg-accent py-1 px-6 text-center text-white shadow-accent-volume transition-all hover:bg-accent-dark text-sm"
+                      className={`js-copy-clipboard flex w-full select-none items-center rounded-lg border bg-white py-3 px-4 hover:bg-jacarta-50 dark:bg-jacarta-700 dark:text-jacarta-300 ${addressValid
+                          ? "border-jacarta-100 dark:border-jacarta-600"
+                          : "border-2 border-red"
+                        }`}
+                      id="admin-address"
+                      // data-tippy-content="Copy"
+                      onClick={() => {
+                        navigator.clipboard.writeText(adminAddress ?? "");
+                      }}
                     >
-                      {imageGenerating ? "Generating..." : "Generate with AI"}
+                      <span>{shortenString(adminAddress, 14) ?? ""}</span>
+
+                      <div className="ml-auto mb-px h-4 w-4 fill-jacarta-500 dark:fill-jacarta-300">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          width="15"
+                          height="16"
+                        >
+                          <path fill="none" d="M0 0h24v24H0z"></path>
+                          <path d="M7 7V3a1 1 0 0 1 1-1h13a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-4v3.993c0 .556-.449 1.007-1.007 1.007H3.007A1.006 1.006 0 0 1 2 20.993l.003-12.986C2.003 7.451 2.452 7 3.01 7H7zm2 0h6.993C16.549 7 17 7.449 17 8.007V15h3V4H9v3zM4.003 9L4 20h11V9H4.003z"></path>
+                        </svg>
+                      </div>
                     </button>
                   </div>
-                )}
-                {orderType === "buy" && (
-                  <div className="mb-6 flex space-x-5 md:pl-8 shrink-0">
-                    <FileUpload
-                      setImage={setBanner}
-                      setImageURL={setBannerURL}
-                      url={bannerURL}
-                      label="NFT collection banner"
-                      description="Upload a banner image (max 5MB). Recommended size is 1920x300 pixels."
-                    />
-                  </div>
-                )} 
+
+                  {/* <Tippy content={launchTip}> */}
+                  <button
+                    onClick={launchToken}
+                    className={`rounded-full py-3 px-8 text-center font-semibold transition-all ${buttonDisabled && false // TODO: remove this in production
+                        ? "bg-jacarta-300 text-white cursor-not-allowed"
+                        : "bg-accent text-white shadow-accent-volume hover:bg-accent-dark"
+                      }`}
+                  >
+                    {addressValid
+                      ? buttonDisabled
+                        ? "Generate random data" // TODO: remove this in production
+                        : orderType === "buy"
+                          ? "Buy"
+                          : "Sell"
+                      : "Create account"}
+                  </button>
+                </>
+              )}
+            {/* </Tippy> */}
+          </div>
+
+          <>
+
+            <div className="min-w-60 max-w-md rounded-2lg border border-jacarta-100 bg-white p-8 dark:border-jacarta-600 dark:bg-jacarta-700">
+              <div className="text-medium mb-4 font-bold text-jacarta-600 dark:text-jacarta-300 text-center">
+                YOUR DEX ACCOUNT
               </div>
-            </>
-          )}*/}
+
+
+              <div className="text-medium  font-bold text-jacarta-400 dark:text-jacarta-300 text-center">
+                BALANCE
+              </div>
+              <div className="mb-8 sm:flex sm:flex-wrap">
+
+                <div className="sm:w-1/2 sm:pr-4 lg:pr-8">
+                  <div className="block overflow-hidden text-ellipsis whitespace-nowrap">
+                    <span className="text-sm text-jacarta-400 dark:text-jacarta-300">
+                      Wrapped ETH
+                    </span>
+                  </div>
+                  <div className="mt-3 flex">
+                    <div>
+                      <div className="flex items-center whitespace-nowrap">
+                        <span className="text-lg font-medium leading-tight tracking-tight">
+                          {formatBalance(10)} WETH
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="sm:w-1/2 sm:pr-4 lg:pr-8">
+                  <div className="block overflow-hidden text-ellipsis whitespace-nowrap">
+                    <span className="text-sm text-jacarta-400 dark:text-jacarta-300">
+                      Wrapped USD
+                    </span>
+                  </div>
+                  <div className="mt-3 flex">
+                    <div>
+                      <div className="flex items-center whitespace-nowrap">
+                        <span className="text-lg font-medium leading-tight tracking-tight">
+                          {formatBalance(100)} WUSD
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-medium  font-bold text-green dark:text-jacarta-300  text-center">
+                BID
+              </div>
+              <div className="mb-8 sm:flex sm:flex-wrap">
+
+                <div className="sm:w-1/2 sm:pr-4 lg:pr-8">
+                  <div className="block overflow-hidden text-ellipsis whitespace-nowrap">
+                    <span className="text-sm text-jacarta-400 dark:text-jacarta-300">
+                      Amount
+                    </span>
+                  </div>
+                  <div className="mt-3 flex">
+                    <div>
+                      <div className="flex items-center whitespace-nowrap">
+                        <span className="text-lg font-medium leading-tight tracking-tight text-green">
+                          {formatBalance(1)} WETH
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="sm:w-1/2 sm:pr-4 lg:pr-8">
+                  <div className="block overflow-hidden text-ellipsis whitespace-nowrap">
+                    <span className="text-sm text-jacarta-400 dark:text-jacarta-300">
+                      Price
+                    </span>
+                  </div>
+                  <div className="mt-3 flex">
+                    <div>
+                      <div className="flex items-center whitespace-nowrap">
+                        <span className="text-lg font-medium leading-tight tracking-tight text-green">
+                          {formatBalance(1800)} WUSD
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-medium  font-bold text-red dark:text-jacarta-300 text-center">
+                ASK
+              </div>
+              <div className="mb-8 sm:flex sm:flex-wrap">
+
+                <div className="sm:w-1/2 sm:pr-4 lg:pr-8">
+                  <div className="block overflow-hidden text-ellipsis whitespace-nowrap">
+                    <span className="text-sm text-jacarta-400 dark:text-jacarta-300">
+                      Amount
+                    </span>
+                  </div>
+                  <div className="mt-3 flex">
+                    <div>
+                      <div className="flex items-center whitespace-nowrap">
+                        <span className="text-lg font-medium leading-tight tracking-tight text-red">
+                          {formatBalance(5)} WETH
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="sm:w-1/2 sm:pr-4 lg:pr-8">
+                  <div className="block overflow-hidden text-ellipsis whitespace-nowrap">
+                    <span className="text-sm text-jacarta-400 dark:text-jacarta-300">
+                      Price
+                    </span>
+                  </div>
+                  <div className="mt-3 flex">
+                    <div>
+                      <div className="flex items-center whitespace-nowrap">
+                        <span className="text-lg font-medium leading-tight tracking-tight text-red">
+                          {formatBalance(2100)} WUSD
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+
+            </div>
+          </>
+
         </div>
       </div>
     </section>
