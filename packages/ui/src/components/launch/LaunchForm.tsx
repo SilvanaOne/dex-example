@@ -2,6 +2,7 @@
 import Image from "next/image";
 import { FileUpload } from "./FileUpload";
 import React, { useEffect, useState, useContext } from "react";
+import Link from "next/link";
 import { AddressContext } from "@/context/address";
 import { getWalletInfo, connectWallet } from "@/lib/wallet";
 import { checkAddress } from "@/lib/address";
@@ -20,12 +21,22 @@ import {
 import { PermissionsModal } from "../modals/PermissionsModal";
 import { CollectionInfo } from "@silvana-one/api";
 import { algoliaGetCollectionList } from "@/lib/search";
+import { UserTradingAccount } from "@/lib/dex/types";
+import { fetchDexAccount } from "@/lib/dex/fetch";
+import { publicKeyToU256 } from "@/lib/dex/public-key";
+import { getConfig } from "@/lib/dex/config";
+import { createAccount as createDexAccount } from "@/lib/dex/account";
+import { faucet as dexFaucet } from "@/lib/dex/faucet";
 const DEBUG = process.env.NEXT_PUBLIC_DEBUG === "true";
 
-function formatBalance(num: number | undefined): string {
+const alice = "B62qqevZM3XZJJJKThPx9ZRNARQQEFcx1sJxaPDjzC5rWrVnMnSK8Y2";
+
+function formatBalance(num: number | bigint | undefined): string {
   if (num === undefined) return "-";
-  const fixed = num.toFixed(2);
-  return fixed.endsWith(".00") ? fixed.slice(0, -3) : fixed;
+  const fixed = (BigInt(num) / 1_000_000_000n).toLocaleString(undefined, {
+    maximumSignificantDigits: 4,
+  });
+  return fixed;
 }
 
 export function LaunchForm({
@@ -33,6 +44,12 @@ export function LaunchForm({
 }: {
   onLaunch: (data: LaunchCollectionData) => void;
 }) {
+  const [account, setAccount] = useState<UserTradingAccount | undefined>(
+    undefined
+  );
+  const [addressU256, setAddressU256] = useState<string | undefined>(undefined);
+  const [user, setUser] = useState<string | undefined>(undefined);
+  const [digest, setDigest] = useState<string | undefined>(undefined);
   const [image, setImage] = useState<File | undefined>(undefined);
   const [imageURL, setImageURL] = useState<string | undefined>(undefined);
   const [banner, setBanner] = useState<File | undefined>(undefined);
@@ -59,6 +76,115 @@ export function LaunchForm({
     string | undefined
   >(undefined);
   const { address, setAddress } = useContext(AddressContext);
+
+  useEffect(() => {
+    async function getU256Address() {
+      if (!user) return;
+      console.log("user", user);
+      const config = await getConfig();
+      console.log("config", config);
+      const u256 = await publicKeyToU256(user);
+      const u256String = u256.toString();
+      console.log("u256String", u256String);
+      setAddressU256(u256String);
+    }
+    getU256Address();
+  }, [user]);
+
+  useEffect(() => {
+    async function getAccount() {
+      console.log("addressU256", addressU256);
+      if (!addressU256) return;
+      const account = await fetchDexAccount({ addressU256: addressU256 });
+      setAccount(account);
+      console.log("account", account);
+    }
+    getAccount();
+  }, [addressU256]);
+
+  useEffect(() => {
+    async function getAccount() {
+      console.log("address", address);
+      if (!address) return;
+      const u256 = await publicKeyToU256(address);
+      const addressU256 = u256.toString();
+      console.log("addressU256", addressU256);
+      if (!addressU256) return;
+      const account = await fetchDexAccount({ addressU256: addressU256 });
+      if (!account) return;
+      setAddressU256(addressU256);
+      setUser(address);
+      setAccount(account);
+      console.log("account", account);
+    }
+    getAccount();
+  }, [address]);
+
+
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+
+    async function pollAccount() {
+      if (!addressU256) return;
+
+      try {
+        const fetchedAccount = await fetchDexAccount({ addressU256: addressU256 });
+
+        // Check if account data has changed
+        let changed = false;
+        if (fetchedAccount) {
+          if (!account) {
+            changed = true;
+            if (DEBUG) console.log("Account was undefined");
+          } else {
+            if (
+              account.baseTokenBalance.amount !== fetchedAccount.baseTokenBalance.amount) {
+              changed = true;
+              if (DEBUG) console.log("Base token balance changed");
+            };
+            if (
+              account.quoteTokenBalance.amount !== fetchedAccount.quoteTokenBalance.amount) {
+              changed = true;
+              if (DEBUG) console.log("Quote token balance changed");
+            };
+            if (
+              account.bid.amount !== fetchedAccount.bid.amount ||
+              account.bid.price !== fetchedAccount.bid.price ||
+              account.bid.isSome !== fetchedAccount.bid.isSome) {
+              changed = true;
+              if (DEBUG) console.log("Bid changed");
+            };
+            if (
+              account.ask.amount !== fetchedAccount.ask.amount ||
+              account.ask.price !== fetchedAccount.ask.price ||
+              account.ask.isSome !== fetchedAccount.ask.isSome) {
+              changed = true;
+              if (DEBUG) console.log("Ask changed");
+            };
+          }
+        }
+        if (changed) {
+          setAccount(fetchedAccount);
+          if (DEBUG) console.log("Account updated:", fetchedAccount);
+        } else {
+          if (DEBUG) console.log("Account not changed");
+        }
+      } catch (error) {
+        console.error("Error polling account:", error);
+      }
+    }
+
+    // Start polling every 5 seconds
+    intervalId = setInterval(pollAccount, 1000);
+
+    // Initial poll
+    pollAccount();
+
+    // Cleanup interval on component unmount
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [addressU256, account, digest]);
 
   async function addressChanged(address: string | undefined) {
     if (address) {
@@ -179,6 +305,57 @@ export function LaunchForm({
     }
   };
 
+  const createAccount = async () => {
+    if (!address) {
+      log.error("createAccount: no address", { adminAddress });
+      return;
+    }
+    console.log("createAccount: address", address);
+    const u256 = await publicKeyToU256(address);
+    const u256String = u256.toString();
+    console.log("u256String", u256String);
+    const account = await fetchDexAccount({ addressU256: u256String });
+    console.log("checked account", account);
+    if (account) {
+      setAddressU256(u256String);
+      setAccount(account);
+    } else {
+      log.info("createAccount: no account, creating account", { addressU256: u256String, address });
+      console.log("creating account", u256String, address);
+      const digest = await createDexAccount(address);
+      console.log("digest", digest);
+      if (digest) {
+        setAddressU256(u256String);
+        setDigest(digest);
+      }
+    }
+  }
+
+  const faucet = async () => {
+    if (!address) {
+      log.error("faucet: no address", { adminAddress });
+      return;
+    }
+    console.log("faucet: address", address);
+    const u256 = await publicKeyToU256(address);
+    const u256String = u256.toString();
+    console.log("u256String", u256String);
+    const account = await fetchDexAccount({ addressU256: u256String });
+    console.log("checked account", account);
+    if (!account) {
+      return
+    } else {
+      log.info("faucet", { addressU256: u256String, address });
+      console.log("faucet", u256String, address);
+      const digest = await dexFaucet(address);
+      console.log("digest", digest);
+      if (digest) {
+        setAddressU256(u256String);
+        setDigest(digest);
+      }
+    }
+  }
+
   const launchToken = async () => {
     if (buttonDisabled) {
       generateRandomData();
@@ -250,8 +427,8 @@ export function LaunchForm({
               <div className="flex rounded-lg border border-jacarta-100 bg-white dark:border-jacarta-600 dark:bg-jacarta-700">
                 <button
                   className={`flex-1 rounded-l-lg py-3 px-4 text-center ${orderType === "buy"
-                      ? "bg-accent text-white"
-                      : "hover:bg-jacarta-50 dark:text-jacarta-300 dark:hover:bg-jacarta-600"
+                    ? "bg-accent text-white"
+                    : "hover:bg-jacarta-50 dark:text-jacarta-300 dark:hover:bg-jacarta-600"
                     }`}
                   onClick={() => setOrderType("buy")}
                 >
@@ -259,8 +436,8 @@ export function LaunchForm({
                 </button>
                 <button
                   className={`flex-1 rounded-r-lg py-3 px-4 text-center ${orderType === "sell"
-                      ? "bg-accent text-white"
-                      : "hover:bg-jacarta-50 dark:text-jacarta-300 dark:hover:bg-jacarta-600"
+                    ? "bg-accent text-white"
+                    : "hover:bg-jacarta-50 dark:text-jacarta-300 dark:hover:bg-jacarta-600"
                     }`}
                   onClick={() => setOrderType("sell")}
                 >
@@ -430,8 +607,8 @@ export function LaunchForm({
                     </label>
                     <button
                       className={`js-copy-clipboard flex w-full select-none items-center rounded-lg border bg-white py-3 px-4 hover:bg-jacarta-50 dark:bg-jacarta-700 dark:text-jacarta-300 ${addressValid
-                          ? "border-jacarta-100 dark:border-jacarta-600"
-                          : "border-2 border-red"
+                        ? "border-jacarta-100 dark:border-jacarta-600"
+                        : "border-2 border-red"
                         }`}
                       id="admin-address"
                       // data-tippy-content="Copy"
@@ -459,8 +636,8 @@ export function LaunchForm({
                   <button
                     onClick={launchToken}
                     className={`rounded-full py-3 px-8 text-center font-semibold transition-all ${buttonDisabled && false // TODO: remove this in production
-                        ? "bg-jacarta-300 text-white cursor-not-allowed"
-                        : "bg-accent text-white shadow-accent-volume hover:bg-accent-dark"
+                      ? "bg-jacarta-300 text-white cursor-not-allowed"
+                      : "bg-accent text-white shadow-accent-volume hover:bg-accent-dark"
                       }`}
                   >
                     {addressValid
@@ -482,125 +659,165 @@ export function LaunchForm({
               <div className="text-medium mb-4 font-bold text-jacarta-600 dark:text-jacarta-300 text-center">
                 YOUR DEX ACCOUNT
               </div>
+              {!account && (
+                <div>
+                  <button
+                    onClick={() => {
+                      createAccount();
+                    }}
+                    className="inline-block w-full rounded-full bg-accent py-2 px-8 text-center font-semibold text-white shadow-accent-volume transition-all hover:bg-accent-dark"
+                  >
+                    Create account
+                  </button>
+                </div>
+              )}
 
-
-              <div className="text-medium  font-bold text-jacarta-400 dark:text-jacarta-300 text-center">
-                BALANCE
-              </div>
-              <div className="mb-8 sm:flex sm:flex-wrap">
-
-                <div className="sm:w-1/2 sm:pr-4 lg:pr-8">
-                  <div className="block overflow-hidden text-ellipsis whitespace-nowrap">
-                    <span className="text-sm text-jacarta-400 dark:text-jacarta-300">
-                      Wrapped ETH
-                    </span>
+              {account && (
+                <>
+                  <div className="text-medium  font-bold text-jacarta-400 dark:text-jacarta-300 text-center">
+                    BALANCE
                   </div>
-                  <div className="mt-3 flex">
-                    <div>
-                      <div className="flex items-center whitespace-nowrap">
-                        <span className="text-lg font-medium leading-tight tracking-tight">
-                          {formatBalance(10)} WETH
+                  <div className="mb-3 sm:flex sm:flex-wrap">
+
+                    <div className="sm:w-1/2 sm:pr-4 lg:pr-8">
+                      <div className="block overflow-hidden text-ellipsis whitespace-nowrap">
+                        <span className="text-sm text-jacarta-400 dark:text-jacarta-300">
+                          Wrapped ETH
                         </span>
+                      </div>
+                      <div className="mt-3 flex">
+                        <div>
+                          <div className="flex items-center whitespace-nowrap">
+                            <span className="text-lg font-medium leading-tight tracking-tight">
+                              {formatBalance(account.baseTokenBalance.amount)} WETH
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="sm:w-1/2 sm:pr-4 lg:pr-8">
+                      <div className="block overflow-hidden text-ellipsis whitespace-nowrap">
+                        <span className="text-sm text-jacarta-400 dark:text-jacarta-300">
+                          Wrapped USD
+                        </span>
+                      </div>
+                      <div className="mt-3 flex">
+                        <div>
+                          <div className="flex items-center whitespace-nowrap">
+                            <span className="text-lg font-medium leading-tight tracking-tight">
+                              {formatBalance(account.quoteTokenBalance.amount)} WUSD
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-                <div className="sm:w-1/2 sm:pr-4 lg:pr-8">
-                  <div className="block overflow-hidden text-ellipsis whitespace-nowrap">
-                    <span className="text-sm text-jacarta-400 dark:text-jacarta-300">
-                      Wrapped USD
-                    </span>
+                  <div>
+                    <button
+                      onClick={() => {
+                        faucet();
+                      }}
+                      className="inline-block w-full rounded-full bg-accent py-2 px-8 text-center font-semibold text-white shadow-accent-volume transition-all hover:bg-accent-dark"
+                    >
+                      Faucet
+                    </button>
                   </div>
-                  <div className="mt-3 flex">
-                    <div>
-                      <div className="flex items-center whitespace-nowrap">
-                        <span className="text-lg font-medium leading-tight tracking-tight">
-                          {formatBalance(100)} WUSD
+
+                  <div className="text-medium mt-4 font-bold text-green dark:text-jacarta-300  text-center">
+                    BID
+                  </div>
+                  <div className="mb-8 sm:flex sm:flex-wrap">
+
+                    <div className="sm:w-1/2 sm:pr-4 lg:pr-8">
+                      <div className="block overflow-hidden text-ellipsis whitespace-nowrap">
+                        <span className="text-sm text-jacarta-400 dark:text-jacarta-300">
+                          Amount
                         </span>
+                      </div>
+                      <div className="mt-3 flex">
+                        <div>
+                          <div className="flex items-center whitespace-nowrap">
+                            <span className="text-lg font-medium leading-tight tracking-tight text-green">
+                              {formatBalance(account.bid.isSome ? account.bid.amount : undefined)} WETH
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="sm:w-1/2 sm:pr-4 lg:pr-8">
+                      <div className="block overflow-hidden text-ellipsis whitespace-nowrap">
+                        <span className="text-sm text-jacarta-400 dark:text-jacarta-300">
+                          Price
+                        </span>
+                      </div>
+                      <div className="mt-3 flex">
+                        <div>
+                          <div className="flex items-center whitespace-nowrap">
+                            <span className="text-lg font-medium leading-tight tracking-tight text-green">
+                              {formatBalance(account.bid.isSome ? account.bid.price : undefined)} WUSD
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
 
-              <div className="text-medium  font-bold text-green dark:text-jacarta-300  text-center">
-                BID
-              </div>
-              <div className="mb-8 sm:flex sm:flex-wrap">
-
-                <div className="sm:w-1/2 sm:pr-4 lg:pr-8">
-                  <div className="block overflow-hidden text-ellipsis whitespace-nowrap">
-                    <span className="text-sm text-jacarta-400 dark:text-jacarta-300">
-                      Amount
-                    </span>
+                  <div className="text-medium  font-bold text-red dark:text-jacarta-300 text-center">
+                    ASK
                   </div>
-                  <div className="mt-3 flex">
-                    <div>
-                      <div className="flex items-center whitespace-nowrap">
-                        <span className="text-lg font-medium leading-tight tracking-tight text-green">
-                          {formatBalance(1)} WETH
+                  <div className="mb-8 sm:flex sm:flex-wrap">
+
+                    <div className="sm:w-1/2 sm:pr-4 lg:pr-8">
+                      <div className="block overflow-hidden text-ellipsis whitespace-nowrap">
+                        <span className="text-sm text-jacarta-400 dark:text-jacarta-300">
+                          Amount
                         </span>
+                      </div>
+                      <div className="mt-3 flex">
+                        <div>
+                          <div className="flex items-center whitespace-nowrap">
+                            <span className="text-lg font-medium leading-tight tracking-tight text-red">
+                              {formatBalance(account.ask.isSome ? account.ask.amount : undefined)} WETH
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="sm:w-1/2 sm:pr-4 lg:pr-8">
+                      <div className="block overflow-hidden text-ellipsis whitespace-nowrap">
+                        <span className="text-sm text-jacarta-400 dark:text-jacarta-300">
+                          Price
+                        </span>
+                      </div>
+                      <div className="mt-3 flex">
+                        <div>
+                          <div className="flex items-center whitespace-nowrap">
+                            <span className="text-lg font-medium leading-tight tracking-tight text-red">
+                              {formatBalance(account.ask.isSome ? account.ask.price : undefined)} WUSD
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-                <div className="sm:w-1/2 sm:pr-4 lg:pr-8">
-                  <div className="block overflow-hidden text-ellipsis whitespace-nowrap">
-                    <span className="text-sm text-jacarta-400 dark:text-jacarta-300">
-                      Price
-                    </span>
-                  </div>
-                  <div className="mt-3 flex">
-                    <div>
-                      <div className="flex items-center whitespace-nowrap">
-                        <span className="text-lg font-medium leading-tight tracking-tight text-green">
-                          {formatBalance(1800)} WUSD
-                        </span>
+                  {digest && (
+                    <>
+                      <div className="text-medium  font-bold dark:text-jacarta-300 text-center">
+                        TX
                       </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="text-medium  font-bold text-red dark:text-jacarta-300 text-center">
-                ASK
-              </div>
-              <div className="mb-8 sm:flex sm:flex-wrap">
-
-                <div className="sm:w-1/2 sm:pr-4 lg:pr-8">
-                  <div className="block overflow-hidden text-ellipsis whitespace-nowrap">
-                    <span className="text-sm text-jacarta-400 dark:text-jacarta-300">
-                      Amount
-                    </span>
-                  </div>
-                  <div className="mt-3 flex">
-                    <div>
-                      <div className="flex items-center whitespace-nowrap">
-                        <span className="text-lg font-medium leading-tight tracking-tight text-red">
-                          {formatBalance(5)} WETH
-                        </span>
+                      <div className=" dark:text-jacarta-300 text-center text-normal">
+                        <Link
+                          href={`https://suiscan.xyz/devnet/tx/${digest}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`flex text-normal text-center items-center justify-between py-3.5 font-normal text-base text-jacarta-700 dark:text-white
+          hover:text-accent focus:text-accent dark:hover:text-accent dark:focus:text-accent lg:px-5`}
+                        >
+                          {shortenString(digest, 24)}
+                        </Link>
                       </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="sm:w-1/2 sm:pr-4 lg:pr-8">
-                  <div className="block overflow-hidden text-ellipsis whitespace-nowrap">
-                    <span className="text-sm text-jacarta-400 dark:text-jacarta-300">
-                      Price
-                    </span>
-                  </div>
-                  <div className="mt-3 flex">
-                    <div>
-                      <div className="flex items-center whitespace-nowrap">
-                        <span className="text-lg font-medium leading-tight tracking-tight text-red">
-                          {formatBalance(2100)} WUSD
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
+                    </>)}
+                </>)}
 
             </div>
           </>
@@ -610,3 +827,4 @@ export function LaunchForm({
     </section>
   );
 }
+// https://suiscan.xyz/devnet/tx/3gMwT8WNqd8ztHTftPccimva4coTkB7A3rD7L5SL5VNK

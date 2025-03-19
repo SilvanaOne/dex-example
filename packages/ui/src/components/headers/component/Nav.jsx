@@ -9,6 +9,7 @@ export default function Nav() {
       (elm) => elm.href.split("/")[1] == pathname.split("/")[1]
     );
   };
+
   return (
     <>
       <li className="group">
@@ -46,6 +47,30 @@ export default function Nav() {
           hover:text-accent focus:text-accent dark:hover:text-accent dark:focus:text-accent lg:px-5`}
         >
           Explorer
+        </Link>
+      </li>
+
+      <li className="group">
+        <Link
+          href={"https://minascan.io/devnet/account/B62qoDLPX1e8ZWeeCpTQnjWYRumJ9mcmzRcuf7FkU4PL3Jai56tSEto/zk-txs"}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`flex items-center justify-between py-3.5 font-display text-base text-jacarta-700 dark:text-white
+          hover:text-accent focus:text-accent dark:hover:text-accent dark:focus:text-accent lg:px-5`}
+        >
+          Mina L1 contract
+        </Link>
+      </li>
+
+      <li className="group">
+        <Link
+          href={"https://suiscan.xyz/devnet/object/0x888f1991967e8f4a6bb0fbbfaf547ae0154ce2e187ec96e248f87f4b57393a93/tx-blocks"}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`flex items-center justify-between py-3.5 font-display text-base text-jacarta-700 dark:text-white
+          hover:text-accent focus:text-accent dark:hover:text-accent dark:focus:text-accent lg:px-5`}
+        >
+          Sui ZK layer
         </Link>
       </li>
 
