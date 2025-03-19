@@ -8,7 +8,7 @@ import React, { useEffect, useState, useContext } from "react";
 import { SearchContext } from "@/context/search";
 import { AddressContext } from "@/context/address";
 import { getWalletInfo, connectWallet } from "@/lib/wallet";
-import { socials_item } from "@/components/footer/socials";
+import { socials_item } from "@/components/footer/socials-data";
 import {
   getTokenHolders,
   getTransactions,
