@@ -73,6 +73,7 @@ const nextConfig = {
     if (isServer === false) {
       config.resolve.alias = {
         ...config.resolve.alias,
+        '@dex-example/lib' : path.join(__dirname, '..', 'lib'),
         o1js: path.resolve(__dirname, "node_modules/o1js/dist/web/index.js"),
       };
       //config.optimization.minimizer = [];
