@@ -1,6 +1,6 @@
 "use client"
 
-import type { UserTradingAccount } from "@/lib/dex/types"
+import type { UserTradingAccount } from "@/lib/dex/ui/types"
 import { useState } from "react"
 
 interface UserAccountProps {

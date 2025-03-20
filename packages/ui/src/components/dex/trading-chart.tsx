@@ -41,7 +41,7 @@ export default function TradingChart() {
           fill: true,
         },
       ],
-    })
+    } as any)
   }, [])
 
   const options: ChartOptions<"line"> = {
@@ -111,7 +111,7 @@ export default function TradingChart() {
         borderWidth: 1.5,
       },
     },
-  }
+  } as any;
 
   return (
     <div className="h-full w-full p-1 flex flex-col">
