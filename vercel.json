@@ -6,5 +6,6 @@
       "use": "@vercel/next"
     }
   ],
+  "includeFiles": ["packages/lib/**/*"],
   "routes": [{ "src": "/(.*)", "dest": "/packages/ui/$1" }]
 }
