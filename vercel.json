@@ -1,11 +1,4 @@
 {
   "buildCommand": "npm run build",
-  "builds": [
-    {
-      "src": "packages/ui/package.json",
-      "use": "@vercel/next"
-    }
-  ],
-  "includeFiles": ["packages/lib/**/*"],
   "routes": [{ "src": "/(.*)", "dest": "/packages/ui/$1" }]
 }
