@@ -5,6 +5,18 @@ import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Secp256k1Keypair } from "@mysten/sui/keypairs/secp256k1";
 import { suiClient, network } from "./sui-client";
 
+let userSecretKey: string | undefined = undefined;
+
+export async function getUserKey(): Promise<string> {
+  if (userSecretKey) return userSecretKey;
+  const { address, keypair, secretKey } = await getKey({
+    secretKey: userSecretKey,
+    name: "user",
+  });
+  userSecretKey = secretKey;
+  return secretKey;
+}
+
 export function suiBalance(balance: CoinBalance): number {
   return Number.parseInt(balance.totalBalance) / Number(MIST_PER_SUI);
 }
@@ -50,7 +62,7 @@ export async function getKey(params: {
     });
     console.log("Faucet tx", tx);
     while (suiBalance(balance) < MIN_SUI_BALANCE) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       balance = await suiClient.getBalance({
         owner: address,
         coinType: "0x2::sui::SUI",
@@ -59,7 +71,6 @@ export async function getKey(params: {
   }
 
   console.log(`${name} address`, address);
-  //console.log("SecretKey", secretKey);
   console.log(`${name} balance: ${suiBalance(balance)} SUI`);
   return { address, secretKey, keypair, balance };
 }

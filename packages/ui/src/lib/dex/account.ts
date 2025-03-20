@@ -13,7 +13,10 @@ if (!adminSecretKey || !validatorSecretKey) {
   throw new Error("Missing environment variables");
 }
 
-export async function createAccount(user: string): Promise<string> {
+export async function createAccount(
+  user: string
+): Promise<{ digest: string; prepareDelay: number; executeDelay: number }> {
+  const start = Date.now();
   const config = await getConfig();
   const u256 = await publicKeyToU256(user);
   const u256String = u256.toString();
@@ -66,14 +69,13 @@ export async function createAccount(user: string): Promise<string> {
     client: suiClient,
   });
 
-  const { digest, events } = await executeTx(signedTx);
+  const end = Date.now();
+  const prepareDelay = end - start;
+  const { digest, executeDelay } = await executeTx(signedTx);
   console.log("Created user:", {
     digest,
-    events,
+    prepareDelay,
+    executeDelay,
   });
-  const waitResult = await waitTx(digest);
-  if (waitResult.errors) {
-    console.log(`Errors for tx ${digest}:`, waitResult.errors);
-  }
-  return digest;
+  return { digest, prepareDelay, executeDelay };
 }

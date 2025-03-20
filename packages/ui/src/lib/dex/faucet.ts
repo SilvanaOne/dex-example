@@ -10,7 +10,7 @@ import { Operation } from "./types";
 import { signDexFields } from "./sign";
 import { wrapMinaSignature } from "./wrap";
 const faucetSecretKey: string = process.env.SECRET_KEY_3!;
-const faucetPublicKey: string = process.env.FAUCET_PUBLIC_KEY!;
+const faucetPublicKey: string = process.env.NEXT_PUBLIC_FAUCET_PUBLIC_KEY!;
 const faucetPrivateKey: string = process.env.FAUCET_PRIVATE_KEY!;
 const poolPublicKey: string = process.env.POOL_PUBLIC_KEY!;
 if (!faucetSecretKey) {
@@ -28,7 +28,10 @@ if (!poolPublicKey) {
   throw new Error("POOL PUBLIC KEY is not set");
 }
 
-export async function faucet(user: string): Promise<string> {
+export async function faucet(
+  user: string
+): Promise<{ digest: string; prepareDelay: number; executeDelay: number }> {
+  const start = Date.now();
   const config = await getConfig();
   const u256 = await publicKeyToU256(user);
   const u256String = u256.toString();
@@ -124,14 +127,14 @@ export async function faucet(user: string): Promise<string> {
     client: suiClient,
   });
 
-  const { digest, events } = await executeTx(signedTx);
-  console.log("Created user:", {
+  const end = Date.now();
+  const prepareDelay = end - start;
+  const { digest, executeDelay } = await executeTx(signedTx);
+  console.log("Faucet:", {
     digest,
-    events,
+    prepareDelay,
+    executeDelay,
   });
-  const waitResult = await waitTx(digest);
-  if (waitResult.errors) {
-    console.log(`Errors for tx ${digest}:`, waitResult.errors);
-  }
-  return digest;
+
+  return { digest, prepareDelay, executeDelay };
 }

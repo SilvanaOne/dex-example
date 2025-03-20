@@ -26,8 +26,9 @@ describe("Prove", async () => {
     let i = 1;
     let last_proved_block_number = 0;
     let last_proved_sequence = 0;
+    let delay = 10;
     while (true) {
-      await sleep(1000);
+      await sleep(delay);
       const events = await fetchEvents({
         packageID,
         module: "transactions",
@@ -104,6 +105,7 @@ describe("Prove", async () => {
               sequence <= maxSequence;
               sequence++
             ) {
+              delay = 100;
               await proveSequenceInternal({ sequence, blockNumber });
             }
           }
@@ -116,6 +118,7 @@ describe("Prove", async () => {
               const blockNumber = Number(
                 (event as any)?.data?.operation?.block_number
               );
+              delay = 100;
               await proveSequenceInternal({ sequence, blockNumber });
             }
           }

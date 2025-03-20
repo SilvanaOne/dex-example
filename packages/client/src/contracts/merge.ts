@@ -78,19 +78,25 @@ export async function mergeProofs(
     throw new Error("Proof 2 sequences are not the same");
   }
   const vk = await compilePromise;
-  const valid1 = verify(sequenceState1.dexProof, vk);
+  console.time("verify proof 1");
+  const valid1 = await verify(sequenceState1.dexProof, vk);
+  console.timeEnd("verify proof 1");
   if (!valid1) {
     throw new Error("Proof 1 is not valid");
   }
-  const valid2 = verify(sequenceState2.dexProof, vk);
+  console.time("verify proof 2");
+  const valid2 = await verify(sequenceState2.dexProof, vk);
+  console.timeEnd("verify proof 2");
   if (!valid2) {
     throw new Error("Proof 2 is not valid");
   }
+  console.time("merge");
   const mergedProof = await DEXProgram.merge(
     sequenceState1.dexProof.publicInput,
     sequenceState1.dexProof,
     sequenceState2.dexProof
   );
+  console.timeEnd("merge");
   const sequenceState: SequenceState = new SequenceState({
     ...sequenceState2,
     sequences: [...sequenceState1.sequences, ...sequenceState2.sequences],

@@ -1,6 +1,45 @@
 import { PrivateKey, Signature, Field, PublicKey, Poseidon } from "o1js";
 import { MinaSignature, Operation, DEX_SIGNATURE_CONTEXT } from "./types";
 
+export async function prepareSignPayload(params: {
+  poolPublicKey: string;
+  operation: Operation;
+  nonce: bigint;
+  baseTokenAmount?: bigint; // u64
+  quoteTokenAmount?: bigint; // u64
+  price?: bigint; // u64
+  receiverPublicKey?: string;
+}): Promise<{
+  minaData: bigint[];
+}> {
+  const {
+    poolPublicKey,
+    operation,
+    nonce,
+    baseTokenAmount,
+    quoteTokenAmount,
+    price,
+    receiverPublicKey,
+  } = params;
+  const poolPublicKeyFields = PublicKey.fromBase58(poolPublicKey);
+  const minaData: Field[] = [
+    Field(DEX_SIGNATURE_CONTEXT),
+    Poseidon.hashPacked(PublicKey, poolPublicKeyFields),
+    Field(operation),
+    Field(nonce),
+  ];
+  if (baseTokenAmount !== undefined) minaData.push(Field(baseTokenAmount));
+  if (quoteTokenAmount !== undefined) minaData.push(Field(quoteTokenAmount));
+  if (price !== undefined) minaData.push(Field(price));
+  if (receiverPublicKey !== undefined)
+    minaData.push(
+      Poseidon.hashPacked(PublicKey, PublicKey.fromBase58(receiverPublicKey))
+    );
+  return {
+    minaData: minaData.map((d) => d.toBigInt()),
+  };
+}
+
 export async function signDexFields(params: {
   minaPrivateKey: string;
   poolPublicKey: string;
@@ -57,4 +96,15 @@ export async function signDexFields(params: {
     minaSignature,
     minaData: minaData.map((d) => d.toBigInt()),
   };
+}
+
+export async function convertMinaSignature(
+  signature: string
+): Promise<MinaSignature> {
+  const signatureFields = Signature.fromBase58(signature);
+  const minaSignature = {
+    r: signatureFields.r.toBigInt(),
+    s: signatureFields.s.toBigInt(),
+  };
+  return minaSignature;
 }

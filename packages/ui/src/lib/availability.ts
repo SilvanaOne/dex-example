@@ -34,62 +34,63 @@ export const countriesNotAvailable: Country[] = [
 export async function checkAvailability(
   retry = false
 ): Promise<Country | null> {
-  if (unavailableCountry || isChecked) return unavailableCountry;
-  try {
-    const token = process.env.NEXT_PUBLIC_IPINFO_TOKEN;
-    if (token === undefined) {
-      log.error("NEXT_PUBLIC_IPINFO_TOKEN is not defined");
-      isFetchedFailed = true;
-      return null;
-    }
-    let response = await fetch(`https://ipinfo.io?token=${token}`);
-    if (!response.ok) {
-      await sleep(5000);
-      response = await fetch(`https://ipinfo.io?token=${token}`);
-      if (!response.ok) {
-        log.error(
-          `checkAvailability error: not ok : ${response.status} ${response.statusText}`,
-          { retry }
-        );
-        isFetchedFailed = true;
-        return null;
-      }
-    }
-    const result = await response.json();
-    const country = countriesNotAvailable.find(
-      (country) => country.code === result?.country
-    );
-    if (country) {
-      log.info(`checkAvailability: not available in ${country.name}`, {
-        code: country.code,
-        name: country.name,
-        geo: result,
-        unavailableCountry,
-      });
-      unavailableCountry = country;
-    }
+  return null; // TODO: remove this
+  // if (unavailableCountry || isChecked) return unavailableCountry;
+  // try {
+  //   const token = process.env.NEXT_PUBLIC_IPINFO_TOKEN;
+  //   if (token === undefined) {
+  //     log.error("NEXT_PUBLIC_IPINFO_TOKEN is not defined");
+  //     isFetchedFailed = true;
+  //     return null;
+  //   }
+  //   let response = await fetch(`https://ipinfo.io?token=${token}`);
+  //   if (!response.ok) {
+  //     await sleep(5000);
+  //     response = await fetch(`https://ipinfo.io?token=${token}`);
+  //     if (!response.ok) {
+  //       log.error(
+  //         `checkAvailability error: not ok : ${response.status} ${response.statusText}`,
+  //         { retry }
+  //       );
+  //       isFetchedFailed = true;
+  //       return null;
+  //     }
+  //   }
+  //   const result = await response.json();
+  //   const country = countriesNotAvailable.find(
+  //     (country) => country.code === result?.country
+  //   );
+  //   if (country) {
+  //     log.info(`checkAvailability: not available in ${country.name}`, {
+  //       code: country.code,
+  //       name: country.name,
+  //       geo: result,
+  //       unavailableCountry,
+  //     });
+  //     unavailableCountry = country;
+  //   }
 
-    isChecked = result?.country !== undefined;
-    if (!isChecked)
-      log.error("checkAvailability: country is undefined", {
-        geo: result,
-      });
-    geo = isChecked ? result : geo;
-    return unavailableCountry;
-  } catch (error: any) {
-    if (retry) {
-      log.info(
-        `checkAvailability error : ${
-          typeof error?.message === "string" ? error?.message : "unknown"
-        }`,
-        { error, retry }
-      );
-      isFetchedFailed = true;
-      return unavailableCountry;
-    }
-    await sleep(5000);
-    return await checkAvailability(true);
-  }
+  //   isChecked = result?.country !== undefined;
+  //   if (!isChecked)
+  //     log.error("checkAvailability: country is undefined", {
+  //       geo: result,
+  //     });
+  //   geo = isChecked ? result : geo;
+  //   return unavailableCountry;
+  // } catch (error: any) {
+  //   if (retry) {
+  //     log.info(
+  //       `checkAvailability error : ${
+  //         typeof error?.message === "string" ? error?.message : "unknown"
+  //       }`,
+  //       { error, retry }
+  //     );
+  //     isFetchedFailed = true;
+  //     return unavailableCountry;
+  //   }
+  //   await sleep(5000);
+  //   return await checkAvailability(true);
+  // }
 }
 checkAvailability();
 

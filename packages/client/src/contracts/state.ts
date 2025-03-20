@@ -188,6 +188,7 @@ export async function processOperation(params: {
   let newMap: DEXMap | undefined = undefined;
   let newDexState: RollupDEXState | undefined = undefined;
   let dexProof: DEXProof | undefined = undefined;
+  if (prove) console.time("prove");
   switch (operation) {
     case Operation.CREATE_ACCOUNT:
       {
@@ -376,6 +377,7 @@ export async function processOperation(params: {
     default:
       throw new Error(`Unsupported operation: ${operation}`);
   }
+  if (prove) console.timeEnd("prove");
   return {
     dexState: newDexState,
     map: newMap,
