@@ -1,9 +1,9 @@
 import path from "node:path";
 import { withLogtail } from "@logtail/next";
 import { fileURLToPath } from "url";
-const { default: bundleAnalyzer } = await import('@next/bundle-analyzer');
+// const { default: bundleAnalyzer } = await import('@next/bundle-analyzer');
 
-const withBundleAnalyzer = bundleAnalyzer({ enabled: process.env.ANALYZE === 'true' });
+// const withBundleAnalyzer = bundleAnalyzer({ enabled: process.env.ANALYZE === 'true' });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,11 +37,11 @@ const nextConfig = {
   webpack(config, { buildId, dev, isServer, defaultLoaders, webpack }) {
       config.resolve.alias = {
         ...config.resolve.alias,
-        '@dex-example/lib' : path.join(__dirname, '..', 'lib'),
+        '@dex-example/lib': path.join(process.cwd(), 'packages', 'lib'),
         'o1js': false,
       };
     return config;
   },
 };
 
-export default withBundleAnalyzer(withLogtail(nextConfig));
+export default withLogtail(nextConfig);
