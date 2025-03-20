@@ -1,4 +1,4 @@
-import Trade from "@/create/page";
+import DEX from "@/home/page";
 import { getSiteName } from "@/lib/chain";
 
 export const metadata = {
@@ -6,5 +6,5 @@ export const metadata = {
 };
 
 export default function Home() {
-  return <Trade />;
+  return <DEX />;
 }

@@ -61,7 +61,7 @@ export default function RootLayout({
                 <TokenDetailsProvider>
                   <TransactionStoreProvider>
                     <ModeChanger />
-                    <TokenHeader showSearch={false} />
+                    {/* <TokenHeader showSearch={false} /> */}
                     {children}
                     <MintAddressesModal onSubmit={() => {}} />
                     <TraitsModal onSubmit={() => {}} />
