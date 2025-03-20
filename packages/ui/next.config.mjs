@@ -37,7 +37,6 @@ const nextConfig = {
   webpack(config, { buildId, dev, isServer, defaultLoaders, webpack }) {
       config.resolve.alias = {
         ...config.resolve.alias,
-        '@dex-example/lib': path.join(process.cwd(), 'packages', 'lib'),
         'o1js': false,
       };
     return config;
