@@ -35,11 +35,15 @@ const nextConfig = {
   reactStrictMode: true,
 
   webpack(config, { buildId, dev, isServer, defaultLoaders, webpack }) {
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        '@dex-example/lib': path.join(__dirname, '..', 'lib'),
-        'o1js': false,
-      };
+    // If process.cwd() ends with "packages/ui", assume repository root is one level up.
+    const repoRoot = process.cwd().endsWith("packages/ui")
+      ? path.join(process.cwd(), "..")
+      : process.cwd();
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@dex-example/lib': path.join(repoRoot, "packages", "lib"),
+      'o1js': false,
+    };
     return config;
   },
 };
