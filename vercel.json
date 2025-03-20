@@ -2,7 +2,7 @@
   "buildCommand": "npm run build",
   "builds": [
     {
-      "src": "packages/ui/next.config.js",
+      "src": "packages/ui/package.json",
       "use": "@vercel/next"
     }
   ],
