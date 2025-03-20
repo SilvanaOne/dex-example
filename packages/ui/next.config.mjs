@@ -37,6 +37,7 @@ const nextConfig = {
     config.resolve.alias = {
       ...config.resolve.alias,
       "o1js": false,
+      "@dex-example/lib": path.join(__dirname, "..", "lib"),
     };
     return config;
   },
