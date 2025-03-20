@@ -1,13 +1,13 @@
 import path from "node:path";
 import { withLogtail } from "@logtail/next";
+import transpileModules from "next-transpile-modules";
 import { fileURLToPath } from "url";
-const { default: bundleAnalyzer } = await import('@next/bundle-analyzer');
 
-const withBundleAnalyzer = bundleAnalyzer({ enabled: process.env.ANALYZE === 'true' });
+// Set up next-transpile-modules for @dex-example/lib
+//const withTM = transpileModules(["@dex-example/lib"]);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -33,15 +33,14 @@ const nextConfig = {
     ],
   },
   reactStrictMode: true,
-
   webpack(config, { buildId, dev, isServer, defaultLoaders, webpack }) {
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        '@dex-example/lib' : path.join(__dirname, '..', 'lib'),
-        'o1js': false,
-      };
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "o1js": false,
+      "@dex-example/lib": path.join(__dirname, "..", "lib"),
+    };
     return config;
   },
 };
 
-export default withBundleAnalyzer(withLogtail(nextConfig));
+export default withLogtail(nextConfig);
