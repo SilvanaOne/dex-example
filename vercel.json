@@ -1,3 +1,10 @@
 {
+  "buildCommand": "npm run build",
+  "builds": [
+    {
+      "src": "packages/ui/next.config.js",
+      "use": "@vercel/next"
+    }
+  ],
   "routes": [{ "src": "/(.*)", "dest": "/packages/ui/$1" }]
 }
