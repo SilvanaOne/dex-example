@@ -4,7 +4,10 @@
   "version": "0.1.0",
   "author": "DFST",
   "bugs": "https://github.com/SilvanaOne/dex-example/issues",
-  "dependencies": {},
+  "dependencies": {
+    "ioredis": "^5.6.0",
+    "nanoid": "^5.1.5"
+  },
   "devDependencies": {
     "@types/node": "^22.13.8",
     "esbuild": "^0.25.0",
@@ -47,7 +50,11 @@
   },
   "repository": "SilvanaOne/dex-example.git",
   "scripts": {
-    "build": "rm -rf dist && tsc && tsc --build tsconfig.web.json && node build-cjs.js"
+    "build": "rm -rf dist && tsc && tsc --build tsconfig.web.json && node build-cjs.js",
+    "test": "NODE_NO_WARNINGS=1 node --loader=ts-node/esm --enable-source-maps -r dotenv/config --require dotenv/config --env-file=.env --test",
+    "localnet": "RUST_LOG=off,sui_node=info sui start --with-faucet --force-regenesis",
+    "template": "npm run test test/template.test.ts",
+    "price": "npm run test test/price.test.ts"
   },
   "type": "module",
   "types": "./dist/node/index.d.ts"

@@ -1,4 +1,4 @@
-import DEX from "@/home/page";
+import DEX from "@/components/dex/dex";
 import { getSiteName } from "@/lib/chain";
 
 export const metadata = {

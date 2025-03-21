@@ -1,4 +1,4 @@
-export type TransactionType = "buy" | "sell" | "transfer" | "stake" | "borrow";
+import type { TransactionType } from "./types";
 
 export async function prepareOrderPayload({
   user,
