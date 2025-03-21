@@ -4,13 +4,10 @@ import { MIST_PER_SUI } from "@mysten/sui/utils";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Secp256k1Keypair } from "@mysten/sui/keypairs/secp256k1";
 import { suiClient, network } from "./sui-client";
-import { getPrice } from "@dex-example/lib";
 
 let userSecretKey: string | undefined = undefined;
 
 export async function getUserKey(): Promise<string> {
-  const price = await getPrice();
-  console.log("price", price);
   if (userSecretKey) return userSecretKey;
   const { address, keypair, secretKey } = await getKey({
     secretKey: userSecretKey,

@@ -57,9 +57,42 @@ export async function fetchDexObject() {
   return data;
 }
 
-export async function fetchDex() {
+interface DexObject {
+  actionsState: number[];
+  admin: string;
+  block_number: string;
+  circuit: {
+    type: string;
+    fields: any;
+  };
+  circuit_address: string;
+  id: {
+    id: string;
+  };
+  isPaused: boolean;
+  last_proved_block_number: string;
+  last_proved_sequence: string;
+  name: string;
+  pool: {
+    type: string;
+    fields: any;
+  };
+  previous_block_actions_state: number[];
+  previous_block_address: string;
+  previous_block_last_sequence: string;
+  previous_block_timestamp: string;
+  proof_calculations: {
+    type: string;
+    fields: any;
+  };
+  public_key: number[];
+  sequence: string;
+  version: number;
+}
+
+export async function fetchDex(): Promise<DexObject | undefined> {
   const dexObject = await fetchDexObject();
-  return (dexObject?.data?.content as any)?.fields;
+  return (dexObject?.data?.content as any)?.fields as DexObject;
 }
 
 export async function fetchDexAccount(params: {

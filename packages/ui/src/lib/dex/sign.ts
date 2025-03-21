@@ -53,6 +53,7 @@ export async function signDexFields(params: {
   minaSignature: MinaSignature;
   minaData: bigint[];
 }> {
+  console.log("signDexFields", params);
   const {
     minaPrivateKey,
     poolPublicKey,

@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState } from "react"
-import type { TransactionType } from "@/lib/dex/ui/order"
+import type { TransactionType } from "@/lib/dex/ui/types"
 
 interface OrderFormProps {
   orderType: TransactionType

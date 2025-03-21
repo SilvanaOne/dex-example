@@ -9,8 +9,7 @@ import { fetchDexAccount } from "./fetch";
 import { Operation } from "./types";
 import { prepareSignPayload, convertMinaSignature } from "./sign";
 import { wrapMinaSignature } from "./wrap";
-
-export type TransactionType = "buy" | "sell" | "transfer";
+import { TransactionType } from "./ui/types";
 
 const poolPublicKey: string = process.env.POOL_PUBLIC_KEY!;
 
@@ -31,6 +30,13 @@ export async function prepareOrderPayload(params: {
   recipient?: string;
   nonce: bigint;
 }> {
+  if (
+    params.type !== "buy" &&
+    params.type !== "sell" &&
+    params.type !== "transfer"
+  ) {
+    throw new Error("Invalid transaction type");
+  }
   const { user, type } = params;
   const config = await getConfig();
   const u256 = await publicKeyToU256(user);

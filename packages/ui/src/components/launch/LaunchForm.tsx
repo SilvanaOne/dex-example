@@ -15,9 +15,10 @@ import { DexConfig, getConfig } from "@/lib/dex/config";
 import { createAccount as createDexAccount } from "@/lib/dex/account";
 import { faucet as dexFaucet } from "@/lib/dex/faucet";
 import { waitTx } from "@/dex/execute";
-import { order, prepareOrderPayload, TransactionType } from "@/lib/dex/order";
+import { order, prepareOrderPayload } from "@/lib/dex/order";
 import { updateTimelineItem } from "../timeline/TimeLine";
 import { getUserKey } from "@/lib/dex/key";
+import { TransactionType } from "@/lib/dex/ui/types";
 const DEBUG = process.env.NEXT_PUBLIC_DEBUG === "true";
 
 const alice = "B62qqevZM3XZJJJKThPx9ZRNARQQEFcx1sJxaPDjzC5rWrVnMnSK8Y2";
@@ -30,8 +31,8 @@ function formatBalance(num: number | bigint | undefined): string {
   return fixed;
 }
 
-type ProcessingType = "buy" | "sell" | "transfer" | "faucet" | "createAccount";
 
+type ProcessingType = TransactionType;
 
 export function LaunchForm({
   onLaunch,
