@@ -7,7 +7,7 @@ import {
   Config,
 } from "../src/config.js";
 
-const readOnly = true;
+const readOnly = false;
 
 const config: Config = {
   dex_package: process.env.PACKAGE_ID || "",
@@ -17,8 +17,9 @@ const config: Config = {
   mina_chain: process.env.MINA_CHAIN || "local",
   mina_contract: process.env.MINA_CONTRACT || "",
 };
+
 describe("Config", async () => {
-  it("should create config", { skip: readOnly }, async () => {
+  it.skip("should create config", { skip: readOnly }, async () => {
     const { configPackageID, configID, adminID } = await createConfig(config);
     console.log({ configPackageID, configID, adminID });
     assert.ok(!!configPackageID);
@@ -28,18 +29,19 @@ describe("Config", async () => {
 
   it("should get config", async () => {
     const config = await getConfig();
-    console.log(config);
+    console.log("current config:", config);
   });
 
   it("should update config", { skip: readOnly }, async () => {
     await updateConfig({
       mina_chain: process.env.MINA_CHAIN || "",
+      dex_package: process.env.PACKAGE_ID || "",
     });
   });
 
   it("should get config after update", { skip: readOnly }, async () => {
     const config = await getConfig();
-    console.log(config);
+    console.log("updated config:", config);
     assert.ok(config !== undefined);
   });
 });

@@ -35,7 +35,7 @@ describe("Prove", async () => {
         cursor,
       });
       cursor = events?.nextCursor;
-      if (events?.data && events.data.length > 0) {
+      if (events?.data) {
         const newEvents = events.data.map((event) => {
           return {
             type: event.type?.split("::").at(-1),
@@ -57,6 +57,7 @@ describe("Prove", async () => {
           const new_last_proved_block_number = Number(
             dex.last_proved_block_number
           );
+
           const new_last_proved_sequence = Number(dex.last_proved_sequence);
           const current_block_number = Number(dex.block_number);
           const current_sequence = Number(dex.sequence);
@@ -78,37 +79,44 @@ describe("Prove", async () => {
             );
           }
 
+          let startBlockNumber = last_proved_block_number + 1 - 5;
+          if (startBlockNumber < 1) {
+            startBlockNumber = 1;
+          }
           for (
-            let blockNumber = last_proved_block_number + 1;
+            let blockNumber = startBlockNumber;
             blockNumber <= current_block_number;
             blockNumber++
           ) {
+            //console.log(`Fetching block ${blockNumber} proofs...`);
             const blockProofs = await fetchBlockProofs({
               blockNumber,
             });
-            if (blockProofs.isFinished) {
-              break;
-            }
-            let startSequence = blockProofs.startSequence;
-            const maxSequence =
-              blockProofs.endSequence ??
-              blockProofs.proofs.reduce((max, proof) => {
-                return Math.max(
-                  max,
-                  proof.sequences.reduce((max, sequence) => {
-                    return Math.max(max, sequence);
-                  }, startSequence)
-                );
-              }, startSequence);
-            for (
-              let sequence = startSequence;
-              sequence <= maxSequence;
-              sequence++
-            ) {
-              delay = 100;
-              await proveSequenceInternal({ sequence, blockNumber });
+            if (!blockProofs.isFinished) {
+              let startSequence = blockProofs.startSequence;
+              const maxSequence =
+                blockProofs.endSequence ??
+                blockProofs.proofs.reduce((max, proof) => {
+                  return Math.max(
+                    max,
+                    proof.sequences.reduce((max, sequence) => {
+                      return Math.max(max, sequence);
+                    }, startSequence)
+                  );
+                }, startSequence);
+              for (
+                let sequence = startSequence;
+                sequence <= maxSequence;
+                sequence++
+              ) {
+                if (sequence < current_sequence) {
+                  //console.log(`Proving sequence ${sequence}...`);
+                  await proveSequenceInternal({ sequence, blockNumber });
+                }
+              }
             }
           }
+          await sleep(1000);
         } else {
           for (const event of newEvents) {
             if ((event as any)?.data?.operation) {
@@ -118,7 +126,6 @@ describe("Prove", async () => {
               const blockNumber = Number(
                 (event as any)?.data?.operation?.block_number
               );
-              delay = 100;
               await proveSequenceInternal({ sequence, blockNumber });
             }
           }
@@ -128,6 +135,8 @@ describe("Prove", async () => {
     }
   });
 });
+
+const proveSequences: number[] = [];
 
 async function proveSequenceInternal({
   sequence,
@@ -142,7 +151,8 @@ async function proveSequenceInternal({
   });
   if (
     proof?.status !== ProofStatus.CALCULATED &&
-    proof?.status !== ProofStatus.USED
+    proof?.status !== ProofStatus.USED &&
+    !proveSequences.includes(sequence)
   ) {
     console.log("Calculating proof:", {
       sequence,
@@ -159,6 +169,7 @@ async function proveSequenceInternal({
         mergedSequences1: [],
         mergedSequences2: [],
       });
+      proveSequences.push(sequence);
       Memory.info(`Proof for sequence ${sequence} submitted`);
     } else {
       console.error("Sequence data not found:", {
@@ -166,5 +177,10 @@ async function proveSequenceInternal({
         blockNumber,
       });
     }
+  } else {
+    // process.stdout.write(
+    //   `${blockNumber}:${sequence}                                     \r`
+    // );
+    //console.log(`${blockNumber}:${sequence}`);
   }
 }

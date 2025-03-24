@@ -175,20 +175,21 @@ public(package) fun set_end_sequence(
     false
 }
 
-public fun get_proof_calculation_address(proof_calculation: &ProofCalculation): address {
+public fun get_proof_calculation_address(
+    proof_calculation: &ProofCalculation,
+): address {
     proof_calculation.id.to_address()
 }
 
-public fun get_proof_calculation_end_sequence(proof_calculation: &ProofCalculation): Option<u64> {
+public fun get_proof_calculation_end_sequence(
+    proof_calculation: &ProofCalculation,
+): Option<u64> {
     proof_calculation.end_sequence
 }
 
 public fun is_finished(proof_calculation: &ProofCalculation): bool {
     proof_calculation.is_finished
 }
-
-#[error]
-const ENotCalculated: vector<u8> = b"Proof calculation not calculated";
 
 public fun reject_proof(
     proof_calculation: &mut ProofCalculation,
@@ -197,7 +198,6 @@ public fun reject_proof(
     ctx: &mut TxContext,
 ) {
     let proof = get_mut(&mut proof_calculation.proofs, &sequences);
-    assert!(proof.status == PROOF_STATUS_CALCULATED, ENotCalculated);
     proof.status = PROOF_STATUS_REJECTED;
 
     event::emit(ProofRejectedEvent {

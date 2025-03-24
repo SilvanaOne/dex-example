@@ -35,6 +35,7 @@ export async function getConfig(): Promise<Config | undefined> {
 }
 
 export async function updateConfig(config: Partial<Config>): Promise<void> {
+  console.log("Updating config", config);
   const suiChain = process.env.SUI_CHAIN || "localnet";
   const configPath = `.env.${suiChain}.config`;
   dotenv.config({ path: configPath });
@@ -63,7 +64,7 @@ export async function updateConfig(config: Partial<Config>): Promise<void> {
     ...configObject,
     ...config,
   };
-
+  console.log("Updated config", updatedConfig);
   // Build transaction to update the config
   const adminSecretKey: string = process.env.ADMIN_SECRET_KEY!;
   if (!adminSecretKey) {

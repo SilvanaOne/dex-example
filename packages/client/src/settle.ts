@@ -98,16 +98,14 @@ export async function settleMinaContract(params: {
   );
 
   const dex = new DEXContract(pool);
-  const txs_number = Number(
-    proof.publicOutput.sequence.toBigInt() -
-      proof.publicInput.sequence.toBigInt() +
-      1n
-  );
+  const startTx = Number(proof.publicInput.sequence.toBigInt());
+  const endTx = Number(proof.publicOutput.sequence.toBigInt()) - 1;
+  const txs_number = endTx - startTx + 1;
   const blockNumber = Number(proof.publicInput.blockNumber.toBigInt());
   console.log("blockNumber", blockNumber);
-  const memo = `Silvana DEX block ${blockNumber} (${txs_number} ${
+  const memo = `block ${blockNumber} (${txs_number} ${
     txs_number === 1 ? "tx" : "txs"
-  })`.substring(0, 30);
+  }: ${startTx} - ${endTx})`.substring(0, 30);
   console.log("memo", memo);
 
   if (!vkProgram) {
