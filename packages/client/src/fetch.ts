@@ -208,6 +208,10 @@ export async function fetchDexEvents(params: {
       return event.operation.sequence === firstSequence;
     });
   }
+  // console.log(
+  //   "fetchDexEvents events",
+  //   events.map((event) => event.operation.sequence)
+  // );
   const filteredEvents: OperationEvent[] = events.filter((event) => {
     if (event?.operation?.sequence < firstSequence) {
       return false;

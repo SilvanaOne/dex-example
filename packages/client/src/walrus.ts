@@ -11,17 +11,18 @@ const readerUrl =
 export async function saveToWalrus({
   data,
   address,
-  numEpochs = 1,
+  numEpochs = 2,
 }: {
   data: string;
   address?: string;
   numEpochs?: number;
 }): Promise<string | undefined> {
   let sendToParam = address ? `&send_object_to=${address}` : "";
+  let epochs = numEpochs < 2 ? 2 : numEpochs;
   console.log("Writing to Walrus");
   console.time("written");
   const response = await fetch(
-    `${basePublisherUrl}/v1/blobs?epochs=${numEpochs}${sendToParam}`,
+    `${basePublisherUrl}/v1/blobs?epochs=${epochs}${sendToParam}`,
     {
       method: "PUT",
       body: data,

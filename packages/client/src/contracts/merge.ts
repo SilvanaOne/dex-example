@@ -3,10 +3,17 @@ import { DEXProgram, DEXProof, SequenceState } from "./rollup.js";
 import { ProofStatus, MergeProofRequest } from "../types.js";
 import { compileDEXProgram } from "./compile.js";
 import { readFromWalrus } from "../walrus.js";
+import { rejectProof } from "../proof.js";
 
 export async function mergeProofs(
-  request: MergeProofRequest
-): Promise<SequenceState> {
+  request: MergeProofRequest,
+  signal?: AbortSignal
+): Promise<SequenceState | undefined> {
+  signal?.addEventListener("abort", () => {
+    // Clean up any resources, stop operations
+    throw new Error("mergeProofs Operation aborted");
+  });
+
   const { blockNumber, proof1, proof2 } = request;
   if (proof1.sequences.length === 0 || proof2.sequences.length === 0) {
     throw new Error("Proofs are empty");
@@ -18,8 +25,10 @@ export async function mergeProofs(
     throw new Error("Proofs are not consecutive");
   }
   if (
-    proof1.status.status !== ProofStatus.CALCULATED ||
-    proof2.status.status !== ProofStatus.CALCULATED
+    (proof1.status.status !== ProofStatus.CALCULATED &&
+      proof1.status.status !== ProofStatus.USED) ||
+    (proof2.status.status !== ProofStatus.CALCULATED &&
+      proof2.status.status !== ProofStatus.USED)
   ) {
     throw new Error("Proofs are not calculated");
   }
@@ -27,18 +36,59 @@ export async function mergeProofs(
     throw new Error("Proofs are not stored in DA");
   }
   const compilePromise = compileDEXProgram();
+  let dataLoaded = true;
+  // console.log("Proof 1", {
+  //   block: blockNumber,
+  //   sequences: proof1.sequences,
+  //   status: proof1.status,
+  //   da: proof1.status.da_hash,
+  // });
+  // console.log("Proof 2", {
+  //   block: blockNumber,
+  //   sequences: proof2.sequences,
+  //   status: proof2.status,
+  //   da: proof2.status.da_hash,
+  // });
 
   const proof1Data = await readFromWalrus({
     blobId: proof1.status.da_hash,
   });
+
   if (!proof1Data) {
-    throw new Error("Proof 1 is not stored in DA");
+    console.log("Proof 1 is not stored in DA, rejecting proof", {
+      block: blockNumber,
+      sequences: proof1.sequences,
+      status: proof1.status,
+      da: proof1.status.da_hash,
+    });
+    await rejectProof({
+      blockNumber,
+      sequences: proof1.sequences,
+    });
+    dataLoaded = false;
   }
+
   const proof2Data = await readFromWalrus({
     blobId: proof2.status.da_hash,
   });
   if (!proof2Data) {
-    throw new Error("Proof 2 is not stored in DA");
+    console.log("Proof 2 is not stored in DA, rejecting proof", {
+      block: blockNumber,
+      sequences: proof2.sequences,
+      status: proof2.status,
+      da: proof2.status.da_hash,
+    });
+    await rejectProof({
+      blockNumber,
+      sequences: proof2.sequences,
+    });
+    dataLoaded = false;
+  }
+  if (!dataLoaded) {
+    return undefined;
+  }
+  if (!proof1Data || !proof2Data) {
+    throw new Error("Proofs are not stored in DA");
   }
 
   const sequenceState1 = await SequenceState.fromJSON(proof1Data);

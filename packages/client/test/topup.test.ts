@@ -83,7 +83,7 @@ describe("Topup DEX users", async () => {
 
     for (const user of [alice, bob]) {
       const baseTokenAmount = 10_000_000_000n;
-      const quoteTokenAmount = 20_000_000_000_000n;
+      const quoteTokenAmount = 20_000_000_000n;
 
       const faucetSignature = await signDexFields({
         minaPrivateKey: faucet.minaPrivateKey,

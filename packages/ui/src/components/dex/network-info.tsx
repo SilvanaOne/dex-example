@@ -31,13 +31,13 @@ export default function NetworkInfo({ networkInfo }: NetworkInfoProps) {
         <div className="flex justify-between mb-0.5">
           <span className="text-[#848e9c]">Mina Contract:</span>
           <span className="text-white">
-            {shortenString(networkInfo?.minaContractAddress ?? "", 4)}
+            {shortenString(networkInfo?.minaContractAddress ?? "", 10)}
           </span>
         </div>
         <div className="flex justify-between mb-0.5">
           <span className="text-[#848e9c]">Mina Circuit ID:</span>
           <span className="text-white">
-            {shortenString(networkInfo?.minaCircuitId ?? "", 4)}
+            {shortenString(networkInfo?.minaCircuitId ?? "", 10)}
           </span>
         </div>
 
@@ -50,7 +50,7 @@ export default function NetworkInfo({ networkInfo }: NetworkInfoProps) {
         <div className="flex justify-between mb-0.5">
           <span className="text-[#848e9c]">Sui Address:</span>
           <span className="text-white">
-            {shortenString(networkInfo?.suiAddress ?? "", 4)}
+            {shortenString(networkInfo?.suiAddress ?? "", 10)}
           </span>
         </div>
         <div className="flex justify-between mb-0.5">
@@ -92,7 +92,7 @@ export default function NetworkInfo({ networkInfo }: NetworkInfoProps) {
         <div className="flex justify-between mb-0.5">
           <span className="text-[#848e9c]">Circuit DA Hash:</span>
           <span className="text-[#8358FF]">
-            {shortenString(networkInfo?.circuitDaHash ?? "", 4)}
+            {shortenString(networkInfo?.circuitDaHash ?? "", 10)}
           </span>
         </div>
       </div>

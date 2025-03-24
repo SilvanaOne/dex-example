@@ -100,6 +100,53 @@ export async function submitProof(params: {
   console.log("Proof submitted successfully:", digest);
 }
 
+export async function rejectProof(params: {
+  blockNumber: number;
+  sequences: number[];
+}): Promise<void> {
+  const { blockNumber, sequences } = params;
+  if (!packageID || !dexID) {
+    throw new Error("PACKAGE_ID or DEX_ID is not set");
+  }
+
+  const { address, keypair, secretKey } = await getKey({
+    secretKey: proverSecretKey,
+    name: "prover",
+  });
+  proverSecretKey = secretKey;
+
+  console.time("tx");
+  const tx = new Transaction();
+
+  const proofArguments = [
+    tx.object(dexID),
+    tx.pure.u64(BigInt(blockNumber)),
+    tx.pure.vector("u64", sequences.map(BigInt)),
+    tx.object(SUI_CLOCK_OBJECT_ID),
+  ];
+
+  tx.moveCall({
+    package: packageID,
+    module: "main",
+    function: "reject_proof",
+    arguments: proofArguments,
+  });
+
+  tx.setSender(address);
+  tx.setGasBudget(200_000_000);
+  const signedTx = await tx.sign({ client: suiClient, signer: keypair });
+  const { digest } = await executeTx(signedTx);
+
+  // Wait for transaction to complete
+  const waitResult = await waitTx(digest);
+  if (waitResult.errors) {
+    console.log(`Errors for tx ${digest}:`, waitResult.errors);
+    throw new Error(`Failed to submit proof: ${waitResult.errors}`);
+  }
+  console.timeEnd("tx");
+  console.log("Proof rejection submitted successfully:", digest);
+}
+
 export async function submitMinaTx(params: {
   blockNumber: number;
   minaTx: string;

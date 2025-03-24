@@ -12,6 +12,8 @@ import { signDexFields } from "../src/sign.js";
 import { Operation, User, UserTradingAccount } from "../src/types.js";
 import { fetchDexAccount } from "../src/fetch.js";
 import { wrapMinaSignature } from "../src/wrap.js";
+import { sleep } from "../src/sleep.js";
+const wait: boolean = false as boolean;
 
 const aliceSecretKey: string = process.env.SECRET_KEY_1!;
 const bobSecretKey: string = process.env.SECRET_KEY_2!;
@@ -97,7 +99,7 @@ describe("Trade", async () => {
         bid: 2_100_000_000n,
       }
     );
-
+    console.time("trade");
     for (const trader of traders) {
       if (!trader.user.minaPrivateKey) {
         throw new Error(`${trader.name} private key is not set`);
@@ -115,7 +117,7 @@ describe("Trade", async () => {
         name: trader.name,
         account: traderAccount,
       });
-
+      console.log(`${trader.name} nonce:`, traderAccount.nonce);
       let nonce = traderAccount.nonce;
       {
         const tx = new Transaction();
@@ -180,22 +182,26 @@ describe("Trade", async () => {
 
         const { digest, events } = await executeTx(signedTx);
         console.timeEnd("bid state");
-        console.time("bid tx public");
-        console.log(`${trader.name} bid:`, digest);
-        const waitResult = await waitTx(digest);
-        console.timeEnd("bid tx public");
-        if (waitResult.errors) {
-          console.log(`Errors for tx ${digest}:`, waitResult.errors);
-        }
-        assert.ok(!waitResult.errors, "bid transaction failed");
 
-        const newAccount = await fetchDexAccount(trader.user.minaPublicKey);
-        if (!newAccount) {
-          throw new Error("Cannot fetch accounts");
+        console.log(`${trader.name} bid:`, digest);
+        if (wait) {
+          console.time("bid tx public");
+          const waitResult = await waitTx(digest);
+          console.timeEnd("bid tx public");
+          if (waitResult.errors) {
+            console.log(`Errors for tx ${digest}:`, waitResult.errors);
+          }
+          assert.ok(!waitResult.errors, "bid transaction failed");
+          const newAccount = await fetchDexAccount(trader.user.minaPublicKey);
+          if (!newAccount) {
+            throw new Error("Cannot fetch accounts");
+          }
         }
+
         //console.log(`${trader.name} account after bid:`, newAccount);
       }
       {
+        console.log(`${trader.name} nonce:`, nonce);
         const tx = new Transaction();
 
         const askSignatures = await signDexFields({
@@ -249,24 +255,28 @@ describe("Trade", async () => {
         const { digest, events } = await executeTx(signedTx);
         console.timeEnd("ask tx send");
         console.timeEnd("ask state");
-        console.time("ask tx public");
-        console.log(`${trader.name} ask:`, digest);
-        const waitResult = await waitTx(digest);
-        console.timeEnd("ask tx public");
-        if (waitResult.errors) {
-          console.log(`Errors for tx ${digest}:`, waitResult.errors);
-        }
-        assert.ok(!waitResult.errors, "ask transaction failed");
+        if (wait) {
+          console.time("ask tx public");
+          console.log(`${trader.name} ask:`, digest);
+          const waitResult = await waitTx(digest);
+          console.timeEnd("ask tx public");
+          if (waitResult.errors) {
+            console.log(`Errors for tx ${digest}:`, waitResult.errors);
+          }
+          assert.ok(!waitResult.errors, "ask transaction failed");
 
-        const newAccount = await fetchDexAccount(trader.user.minaPublicKey);
-        if (!newAccount) {
-          throw new Error("Cannot fetch accounts");
+          const newAccount = await fetchDexAccount(trader.user.minaPublicKey);
+          if (!newAccount) {
+            throw new Error("Cannot fetch accounts");
+          }
         }
         //console.log(`${trader.name} account after ask:`, newAccount);
       }
     }
+    console.timeEnd("trade");
   });
   it("should trade", async () => {
+    //await sleep(5000);
     if (!packageID) {
       throw new Error("PACKAGE_ID is not set");
     }

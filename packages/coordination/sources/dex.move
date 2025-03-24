@@ -87,7 +87,10 @@ public struct DEX has key, store {
     sequence: u64,
     block_number: u64,
     actionsState: vector<u8>,
-    proof_calculations: object_table::ObjectTable<u64, prover::ProofCalculation>,
+    proof_calculations: object_table::ObjectTable<
+        u64,
+        prover::ProofCalculation,
+    >,
     admin: address,
     public_key: vector<u8>,
     circuit: prover::Circuit,
@@ -286,7 +289,10 @@ public fun create_dex(
         clock,
         ctx,
     );
-    let mut proof_calculations = object_table::new<u64, prover::ProofCalculation>(ctx);
+    let mut proof_calculations = object_table::new<
+        u64,
+        prover::ProofCalculation,
+    >(ctx);
     proof_calculations.add(0u64, proof_calculation_block_0);
     proof_calculations.add(1u64, proof_calculation_block_1);
 
@@ -350,7 +356,9 @@ public(package) fun get_public_key(dex: &DEX): vector<u8> {
     dex.public_key
 }
 
-public(package) fun get_dex_state(dex: &DEX): (vector<u8>, u64, u64, vector<u8>, String, u256) {
+public(package) fun get_dex_state(
+    dex: &DEX,
+): (vector<u8>, u64, u64, vector<u8>, String, u256) {
     (
         dex.public_key,
         dex.sequence,
@@ -361,11 +369,17 @@ public(package) fun get_dex_state(dex: &DEX): (vector<u8>, u64, u64, vector<u8>,
     )
 }
 
-public(package) fun get_pool_account(dex: &mut DEX, publicKey: u256): &mut UserTradingAccount {
+public(package) fun get_pool_account(
+    dex: &mut DEX,
+    publicKey: u256,
+): &mut UserTradingAccount {
     pool::get_account(&mut dex.pool, publicKey)
 }
 
-public(package) fun update_actions_state(dex: &mut DEX, actionState: vector<u8>) {
+public(package) fun update_actions_state(
+    dex: &mut DEX,
+    actionState: vector<u8>,
+) {
     assert!(dex.isPaused == false, EDEXPaused);
     dex.actionsState = actionState;
     dex.sequence = dex.sequence + 1;
@@ -378,14 +392,29 @@ public(package) fun update_pool_last_price(dex: &mut DEX, last_price: u64) {
 #[error]
 const ENoTransactions: vector<u8> = b"No new transactions";
 
-public fun create_block(admin: &Admin, dex: &mut DEX, clock: &Clock, ctx: &mut TxContext) {
-    assert!((dex.previous_block_last_sequence + 1) != dex.sequence, ENoTransactions);
+public fun create_block(
+    admin: &Admin,
+    dex: &mut DEX,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    assert!(
+        (dex.previous_block_last_sequence + 1) != dex.sequence,
+        ENoTransactions,
+    );
     dex.only_admin(ctx);
     let mut block_number = dex.block_number;
     let start_sequence = dex.previous_block_last_sequence + 1;
     let end_sequence = dex.sequence - 1;
-    let proof_calculation = object_table::borrow_mut(&mut dex.proof_calculations, block_number);
-    let finished = prover::set_end_sequence(proof_calculation, end_sequence, clock);
+    let proof_calculation = object_table::borrow_mut(
+        &mut dex.proof_calculations,
+        block_number,
+    );
+    let finished = prover::set_end_sequence(
+        proof_calculation,
+        end_sequence,
+        clock,
+    );
     if (finished) {
         if (dex.last_proved_block_number == block_number - 1) {
             dex.last_proved_block_number = block_number;
@@ -422,7 +451,11 @@ public fun create_block(admin: &Admin, dex: &mut DEX, clock: &Clock, ctx: &mut T
     dex.previous_block_timestamp = timestamp;
     dex.previous_block_actions_state = dex.actionsState;
     dex.previous_block_last_sequence = end_sequence;
-    object_table::add(&mut dex.proof_calculations, block_number, new_proof_calculation);
+    object_table::add(
+        &mut dex.proof_calculations,
+        block_number,
+        new_proof_calculation,
+    );
 }
 
 public fun submit_proof(
@@ -435,7 +468,10 @@ public fun submit_proof(
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
-    let proof_calculation = object_table::borrow_mut(&mut dex.proof_calculations, block_number);
+    let proof_calculation = object_table::borrow_mut(
+        &mut dex.proof_calculations,
+        block_number,
+    );
     let finished = prover::submit_proof(
         proof_calculation,
         sequences,
@@ -452,15 +488,39 @@ public fun submit_proof(
     if (finished) {
         let mut i = dex.last_proved_block_number + 1;
         while (i < dex.block_number) {
-            let proof_calculation = object_table::borrow(&dex.proof_calculations, i);
+            let proof_calculation = object_table::borrow(
+                &dex.proof_calculations,
+                i,
+            );
             if (prover::is_finished(proof_calculation)) {
                 dex.last_proved_block_number = i;
-                let end_sequence = prover::get_proof_calculation_end_sequence(proof_calculation);
+                let end_sequence = prover::get_proof_calculation_end_sequence(
+                    proof_calculation,
+                );
                 dex.last_proved_sequence = *end_sequence.borrow();
-            };
+            } else return;
             i = i + 1;
         };
     };
+}
+
+public fun reject_proof(
+    dex: &mut DEX,
+    block_number: u64,
+    sequences: vector<u64>, // should be sorted
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    let proof_calculation = object_table::borrow_mut(
+        &mut dex.proof_calculations,
+        block_number,
+    );
+    prover::reject_proof(
+        proof_calculation,
+        sequences,
+        clock,
+        ctx,
+    );
 }
 
 #[allow(lint(self_transfer))]

@@ -13,9 +13,11 @@ export async function executeTx(tx: SignatureWithBytes) {
       showInput: true,
       showEvents: true,
       showBalanceChanges: true,
+      showRawInput: true,
     },
   });
   console.timeEnd(`tx execute`);
+  //console.log(executedTx);
 
   if (executedTx.effects?.status?.status === "failure") {
     console.log(
