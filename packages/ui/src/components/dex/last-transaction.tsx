@@ -8,7 +8,7 @@ import type {
   TransactionProof,
   TransactionError,
 } from "@/lib/dex/ui/types";
-
+import { suiExplorerTxUrl } from "@/lib/chain";
 interface LastTransactionProps {
   txData: LastTransactionData | LastTransactionErrors | null;
 }
@@ -21,8 +21,7 @@ export default function LastTransaction({ txData }: LastTransactionProps) {
       </div>
     );
   }
-  const isLastTransactionData =
-    (txData as any).zkCoordinationHash !== undefined;
+  const isLastTransactionData = (txData as any).digest !== undefined;
   const data = txData as LastTransactionData;
 
   return (
@@ -34,9 +33,16 @@ export default function LastTransaction({ txData }: LastTransactionProps) {
       {isLastTransactionData && (
         <>
           <div className="grid grid-cols-2 gap-x-1 text-[9px] mb-1">
-            <div className="text-[#848e9c]">ZK coordination hash:</div>
+            <div className="text-[#848e9c]">ZK coordination tx hash:</div>
             <div className="truncate text-[#f0b90b]">
-              {shortenString(data.zkCoordinationHash, 10)}
+              <a
+                href={suiExplorerTxUrl(data.digest?.toString() ?? "")}
+                className="text-accent hover:underline"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {shortenString(data.digest.toString(), 10)}
+              </a>
             </div>
 
             <div className="text-[#848e9c]">Tx prepared in:</div>
@@ -53,7 +59,10 @@ export default function LastTransaction({ txData }: LastTransactionProps) {
             )}
 
             <div className="text-[#848e9c]">ZK block number:</div>
-            <div className="text-white">{data.zkBlockNumber}</div>
+            <div className="text-white">{data.blockNumber}</div>
+
+            <div className="text-[#848e9c]">ZK sequence number:</div>
+            <div className="text-white">{data.sequence}</div>
 
             {data.minaTxHash && (
               <>

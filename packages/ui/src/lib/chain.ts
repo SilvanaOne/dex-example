@@ -1,5 +1,8 @@
 import { MinaNetworkParams, Mainnet, Devnet, Zeko } from "./networks";
 
+const SUI_CHAIN = process.env.NEXT_PUBLIC_SUI_CHAIN;
+if (!SUI_CHAIN) throw new Error("NEXT_PUBLIC_SUI_CHAIN is undefined");
+
 export function getChain(): "mainnet" | "devnet" | "zeko" {
   const chain = process.env.NEXT_PUBLIC_CHAIN;
   if (chain === undefined) throw new Error("NEXT_PUBLIC_CHAIN is undefined");
@@ -66,6 +69,14 @@ export function explorerTransactionUrl(): string {
 export function explorerTokenUrl(): string {
   const network = getNetwork();
   return network.explorerTokenUrl;
+}
+
+export function suiExplorerTxUrl(tx: string): string {
+  return `https://suiscan.xyz/${SUI_CHAIN}/tx/${tx}`;
+}
+
+export function suiExplorerObjectUrl(object: string): string {
+  return `https://suiscan.xyz/${SUI_CHAIN}/object/${object}`;
 }
 
 export function getSiteName(): string {

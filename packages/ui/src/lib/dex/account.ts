@@ -5,7 +5,7 @@ import { Transaction } from "@mysten/sui/transactions";
 import { getKey } from "./key";
 import { suiClient } from "./sui-client";
 import { executeTx, waitTx } from "./execute";
-
+import { LastTransactionData } from "./ui/types";
 const adminSecretKey: string = process.env.ADMIN_SECRET_KEY!;
 const validatorSecretKey: string = process.env.VALIDATOR_SECRET_KEY!;
 
@@ -15,7 +15,7 @@ if (!adminSecretKey || !validatorSecretKey) {
 
 export async function createAccount(
   user: string
-): Promise<{ digest: string; prepareDelay: number; executeDelay: number }> {
+): Promise<Partial<LastTransactionData>> {
   const start = Date.now();
   const config = await getConfig();
   const u256 = await publicKeyToU256(user);
@@ -70,12 +70,8 @@ export async function createAccount(
   });
 
   const end = Date.now();
-  const prepareDelay = end - start;
-  const { digest, executeDelay } = await executeTx(signedTx);
-  console.log("Created user:", {
-    digest,
-    prepareDelay,
-    executeDelay,
-  });
-  return { digest, prepareDelay, executeDelay };
+  const prepareTime = end - start;
+  const result = await executeTx(signedTx);
+  console.log("Created user:", result);
+  return { ...result, prepareTime };
 }

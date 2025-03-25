@@ -1,14 +1,21 @@
 "use client";
 
 import type { UserTradingAccount } from "@/lib/dex/types";
-import type { PendingTransactions } from "@/lib/dex/ui/types";
+import type {
+  PendingTransactions,
+  TransactionType,
+  OrderFormState,
+} from "@/lib/dex/ui/types";
 import { useState } from "react";
+import Processing from "./ui/processing";
 
 interface UserAccountProps {
   account: UserTradingAccount | undefined;
   pendingTransactions: PendingTransactions | undefined;
   highlight: boolean;
   faucet: () => void;
+  createAccount: () => void;
+  processing: TransactionType | undefined;
 }
 
 export default function UserAccount({
@@ -16,6 +23,8 @@ export default function UserAccount({
   pendingTransactions,
   highlight,
   faucet,
+  createAccount,
+  processing,
 }: UserAccountProps) {
   const [activeTab, setActiveTab] = useState<
     "balances" | "deposits" | "withdrawals"
@@ -43,8 +52,19 @@ export default function UserAccount({
   if (!account) {
     return (
       <div className="text-center p-4">
-        <button className="bg-[#1E80FF] hover:bg-[#1a70e0] rounded-lg px-4 py-1 text-xs transition-colors">
-          Create Account
+        <button
+          onClick={createAccount}
+          disabled={processing !== undefined}
+          className="bg-[#1E80FF] hover:bg-[#1a70e0] rounded-lg px-10 py-2 text-xs transition-colors flex items-center justify-center mx-auto animate-pulse shadow-lg shadow-[#1E80FF]/30"
+        >
+          {processing === "createAccount" ? (
+            <>
+              <Processing />
+              Creating Account...
+            </>
+          ) : (
+            "Create Account"
+          )}
         </button>
       </div>
     );
@@ -275,9 +295,17 @@ export default function UserAccount({
       {/* Faucet button with blue color */}
       <button
         onClick={faucet}
-        className="h-9 w-full bg-[#1E80FF] hover:bg-[#1a70e0] rounded-lg text-[12px] font-semibold transition-colors"
+        disabled={processing !== undefined}
+        className="h-9 w-full bg-[#1E80FF] hover:bg-[#1a70e0] rounded-lg text-[12px] font-semibold transition-colors flex items-center justify-center"
       >
-        Faucet
+        {processing === "faucet" ? (
+          <>
+            <Processing />
+            Getting funds from faucet...
+          </>
+        ) : (
+          "Faucet"
+        )}
       </button>
     </div>
   );

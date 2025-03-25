@@ -79,14 +79,3 @@ if (hasErrors) {
     });
   }
 }
-
-export const mockTxData: LastTransactionData = {
-  prepareTime: 1042,
-  executeTime: 682,
-  indexTime: 2299,
-  zkBlockNumber: 1234567,
-  zkCoordinationHash: "6dxvhYLnt8WrRFk6m1b4NShSsx81gX4K1aGBKXMqXKXU",
-  minaTxHash: "5JuocrtFruSjQLTddR3GoVZ23dEauZSupiVtfiitiqpmsvyRiAQP",
-  proofs: mockProofs,
-  errors: mockErrors,
-};
