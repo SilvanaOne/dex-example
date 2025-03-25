@@ -127,7 +127,7 @@ export async function settleMinaContract(params: {
   const tx = await Mina.transaction(
     {
       sender: admin,
-      fee: 200_000_000,
+      fee: 100_000_000,
       memo,
       nonce,
     },

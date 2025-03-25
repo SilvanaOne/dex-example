@@ -33,9 +33,10 @@ export function createInitialState(): DexObjects {
     name: "Faucet",
     role: "Faucet",
     baseTokenBalance: 1_000_000_000_000_000n,
-    quoteTokenBalance: 1_000_000_000_000_000n,
+    quoteTokenBalance: 15_000_000_000_000_000_000n,
     image:
       "https://assets-global.website-files.com/636e894daa9e99940a604aef/655842da7e6e462fc433de1b_Crypto%20Faucet.webp",
+    privateKey: process.env.MINA_FAUCET_PRIVATE_KEY,
   });
   const liquidityProvider = createUser({
     name: "Liquidity Provider",
@@ -71,9 +72,12 @@ export function createToken(params: {
   name: string;
   description: string;
   image?: string;
+  privateKey?: string;
 }): Token {
   const { token, name, description, image = "" } = params;
-  const privateKey = PrivateKey.random();
+  const privateKey = params.privateKey
+    ? PrivateKey.fromBase58(params.privateKey)
+    : PrivateKey.random();
   const publicKey = privateKey.toPublicKey();
   const tokenId = TokenId.derive(publicKey);
   return {
@@ -114,6 +118,7 @@ export function createUser(params: {
   role?: "Faucet" | "Liquidity Provider" | "User";
   baseTokenBalance?: bigint;
   quoteTokenBalance?: bigint;
+  privateKey?: string;
 }): User {
   const {
     name,
@@ -122,7 +127,9 @@ export function createUser(params: {
     baseTokenBalance,
     quoteTokenBalance,
   } = params;
-  const privateKey = PrivateKey.random();
+  const privateKey = params.privateKey
+    ? PrivateKey.fromBase58(params.privateKey)
+    : PrivateKey.random();
   const publicKey = privateKey.toPublicKey();
   return {
     name: name ?? publicKey.toBase58(),
