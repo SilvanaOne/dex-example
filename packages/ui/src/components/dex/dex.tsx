@@ -8,10 +8,11 @@ import type {
   LastTransactionData,
   LastTransactionErrors,
   NetworkInfoData,
+  OrderFormState,
 } from "@/lib/dex/ui/types";
 import type { UserTradingAccount } from "@/lib/dex/types";
 import OrderBook from "@/components/dex/order-book";
-import OrderForm from "@/components/dex/order-form";
+import { OrderForm } from "@/components/dex/order-form";
 import UserAccount from "@/components/dex/user-account";
 import OpenOrders from "@/components/dex/open-orders";
 import MarketTrades from "@/components/dex/market-trades";
@@ -35,10 +36,10 @@ import { DexConfig, getConfig } from "@/lib/dex/config";
 import { createAccount as createDexAccount } from "@/lib/dex/account";
 import { faucet as dexFaucet } from "@/lib/dex/faucet";
 import { waitTx } from "@/dex/execute";
-import { order, prepareOrderPayload } from "@/lib/dex/order";
+import { order as dexOrder, prepareOrderPayload } from "@/lib/dex/order";
 import { getUserKey } from "@/lib/dex/key";
 import { getNetworkInfo } from "@/lib/dex/info";
-import { mockTransactions, mockTxData } from "./mock";
+import { mockTransactions } from "./mock";
 const DEBUG = process.env.NEXT_PUBLIC_DEBUG === "true";
 
 // Use dynamic import with SSR disabled for the chart component
@@ -53,10 +54,10 @@ export default function DEX() {
   const [pendingTransactions, setPendingTransactions] = useState<
     PendingTransactions | undefined
   >(undefined);
-  const [orderType, setOrderType] = useState<TransactionType>("buy");
   const [priceDirection, setPriceDirection] = useState<"up" | "down">("up"); // Track price direction
   const [price, setPrice] = useState<number | undefined>(undefined);
   const [change, setChange] = useState<number | undefined>(undefined);
+  const [orderType, setOrderType] = useState<TransactionType>("buy");
   const [networkInfo, setNetworkInfo] = useState<NetworkInfoData | undefined>(
     undefined
   );
@@ -68,14 +69,10 @@ export default function DEX() {
   const [txData, setTxData] = useState<
     LastTransactionData | LastTransactionErrors | null
   >(null);
-  const [amount, setAmount] = useState<number | undefined>(undefined);
-  const [recipient, setRecipient] = useState<string | undefined>(undefined);
   const [processing, setProcessing] = useState<TransactionType | undefined>(
     undefined
   );
-  const [buttonDisabled, setButtonDisabled] = useState<boolean>(true);
   const [addressValid, setAddressValid] = useState<boolean>(true);
-
   const { address, setAddress } = useContext(AddressContext);
 
   useEffect(() => {
@@ -115,18 +112,19 @@ export default function DEX() {
 
   useEffect(() => {
     async function waitForTx(txData: LastTransactionData) {
-      if (!txData?.zkCoordinationHash) return;
+      if (!txData?.digest) return;
+      if (txData.indexTime) return;
       const start = Date.now();
-      const tx = await waitTx(txData.zkCoordinationHash);
+      const tx = await waitTx(txData.digest);
       const end = Date.now();
       const duration = end - start;
-      console.log("tx", tx);
+      console.log("index delay", duration);
       setTxData((prevTxData) => {
         if (prevTxData === null) return prevTxData;
         return { ...prevTxData, indexTime: duration };
       });
     }
-    if (txData !== null && !(txData as any).zkCoordinationHash) {
+    if (txData !== null && (txData as any).digest) {
       waitForTx(txData as LastTransactionData);
     }
   }, [txData]);
@@ -147,7 +145,7 @@ export default function DEX() {
       console.log("account", account);
     }
     getAccount();
-  }, [address]);
+  }, [address, txData]);
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
@@ -223,15 +221,6 @@ export default function DEX() {
     };
   }, [addressU256, account, txData]);
 
-  useEffect(() => {
-    setButtonDisabled(
-      addressValid &&
-        (((!amount || !price) &&
-          (orderType === "buy" || orderType === "sell")) ||
-          (!recipient && orderType === "transfer"))
-    );
-  }, [addressValid, amount, price, recipient]);
-
   async function getAddress(): Promise<string | undefined> {
     let userAddress = address;
 
@@ -273,13 +262,6 @@ export default function DEX() {
     getDexConfig();
   }, []);
 
-  const generateRandomData = () => {
-    setAmount(Math.floor(Math.random() * 30) / 10);
-    setPrice(Math.floor(Math.random() * 500) + 1750);
-    const faucetPublicKey: string = process.env.NEXT_PUBLIC_FAUCET_PUBLIC_KEY!;
-    setRecipient(faucetPublicKey);
-  };
-
   const startProcessing = (type: TransactionType) => {
     setTxData(null);
     setProcessing(type);
@@ -287,7 +269,6 @@ export default function DEX() {
 
   const createAccount = async () => {
     startProcessing("createAccount");
-
     if (!address) {
       setTxData({
         errors: [
@@ -298,9 +279,9 @@ export default function DEX() {
           },
         ],
       });
+      setProcessing(undefined);
       return;
     }
-    setProcessing("createAccount");
     console.log("createAccount: address", address);
     const u256 = await publicKeyToU256(address);
     const u256String = u256.toString();
@@ -317,15 +298,9 @@ export default function DEX() {
       });
       console.log("creating account", u256String, address);
       try {
-        const { digest, prepareDelay, executeDelay } = await createDexAccount(
-          address
-        );
+        const result = await createDexAccount(address);
         setAddressU256(u256String);
-        setTxData({
-          zkCoordinationHash: digest,
-          prepareTime: prepareDelay,
-          executeTime: executeDelay,
-        });
+        setTxData(result);
       } catch (error: any) {
         setTxData({
           errors: [
@@ -356,13 +331,9 @@ export default function DEX() {
       return;
     }
     try {
-      const { digest, prepareDelay, executeDelay } = await dexFaucet(address);
-      setTxData({
-        zkCoordinationHash: digest,
-        prepareTime: prepareDelay,
-        executeTime: executeDelay,
-      });
-      if (DEBUG) console.log("digest", digest);
+      const result = await dexFaucet(address);
+      setTxData(result);
+      if (DEBUG) console.log("result", result);
     } catch (error: any) {
       setTxData({
         errors: [
@@ -378,11 +349,8 @@ export default function DEX() {
     }
   };
 
-  const executeOrder = async () => {
-    if (buttonDisabled) {
-      generateRandomData();
-      return;
-    }
+  const executeOrder = async (order: OrderFormState) => {
+    startProcessing(order.orderType);
 
     if (!address) {
       setTxData({
@@ -394,6 +362,7 @@ export default function DEX() {
           },
         ],
       });
+      setProcessing(undefined);
       return;
     }
     const mina = (window as any).mina;
@@ -407,45 +376,109 @@ export default function DEX() {
           },
         ],
       });
+      setProcessing(undefined);
       return;
     }
-    startProcessing(orderType);
+
+    if (
+      order.orderType !== "buy" &&
+      order.orderType !== "sell" &&
+      order.orderType !== "transfer" &&
+      order.orderType !== "cancelBuy" &&
+      order.orderType !== "cancelSell"
+    ) {
+      setTxData({
+        errors: [
+          {
+            code: "E0002",
+            message: `${order.orderType} orders are in development, check back soon!`,
+            severity: "error",
+          },
+        ],
+      });
+      setProcessing(undefined);
+      return;
+    }
+
+    let amount =
+      order.amount !== undefined && order.amount !== ""
+        ? Number(order.amount)
+        : undefined;
+    let price =
+      order.price !== undefined && order.price !== ""
+        ? Number(order.price)
+        : undefined;
+
+    if (amount === undefined) {
+      setTxData({
+        errors: [
+          {
+            code: "E0003",
+            message: `Amount is required for ${order.orderType} orders`,
+            severity: "error",
+          },
+        ],
+      });
+      setProcessing(undefined);
+      return;
+    }
+
+    if (
+      price === undefined &&
+      (order.orderType === "buy" ||
+        order.orderType === "sell" ||
+        order.orderType === "cancelBuy" ||
+        order.orderType === "cancelSell")
+    ) {
+      setTxData({
+        errors: [
+          {
+            code: "E0004",
+            message: `Price is required for ${order.orderType} orders`,
+            severity: "error",
+          },
+        ],
+      });
+      setProcessing(undefined);
+      return;
+    }
+
+    if (!order.recipient && order.orderType === "transfer") {
+      setTxData({
+        errors: [
+          {
+            code: "E0005",
+            message: `Recipient is required for transfer orders`,
+            severity: "error",
+          },
+        ],
+      });
+      setProcessing(undefined);
+      return;
+    }
+
+    let type: TransactionType = order.orderType;
+    if (order.orderType === "cancelBuy") type = "buy";
+    if (order.orderType === "cancelSell") type = "sell";
 
     try {
-      if (!amount || !price) {
-        setTxData({
-          errors: [
-            {
-              code: "E0001",
-              message: "No amount or price",
-              severity: "error",
-            },
-          ],
-        });
-        return;
-      }
-      const {
-        payload,
-        amount: amountBigint,
-        price: priceBigint,
-        nonce,
-        recipient: recipientAddress,
-      } = await prepareOrderPayload({
+      const orderPayload = await prepareOrderPayload({
         user: address,
         amount,
         price,
-        recipient,
-        type: orderType,
+        recipient: order.recipient,
+        type,
+        currency: order.transferCurrency ?? "WETH",
       });
       const { signature, publicKey } = await mina?.signFields({
-        message: payload.map((p) => p.toString()),
+        message: orderPayload.payload.map((p: bigint) => p.toString()),
       });
       if (DEBUG) console.log("Transaction result", { signature, publicKey });
       if (!signature) {
         setTxData({
           errors: [
             {
-              code: "E0001",
+              code: "E0007",
               message: "No signature received",
               severity: "error",
             },
@@ -457,7 +490,7 @@ export default function DEX() {
         setTxData({
           errors: [
             {
-              code: "E0001",
+              code: "E0008",
               message: "No public key received",
               severity: "error",
             },
@@ -470,7 +503,7 @@ export default function DEX() {
         setTxData({
           errors: [
             {
-              code: "E0001",
+              code: "E0009",
               message: "Signed using wrong address",
               severity: "error",
             },
@@ -479,29 +512,19 @@ export default function DEX() {
         setProcessing(undefined);
         return;
       }
-      const { digest, prepareDelay, executeDelay } = await order({
-        user: address,
-        amount: amountBigint,
-        price: priceBigint,
-        recipient: recipientAddress,
-        nonce,
+      const result = await dexOrder({
         signature,
-        payload,
-        type: orderType,
+        orderPayload,
         key,
       });
 
-      setTxData({
-        zkCoordinationHash: digest,
-        prepareTime: prepareDelay,
-        executeTime: executeDelay,
-      });
-      if (DEBUG) console.log("digest", digest);
+      setTxData(result);
+      if (DEBUG) console.log("result", result);
     } catch (error: any) {
       setTxData({
         errors: [
           {
-            code: "E0001",
+            code: "E0010",
             message: error.message ?? "tx failed",
             severity: "error",
           },
@@ -648,6 +671,10 @@ export default function DEX() {
                 orderType={orderType}
                 setOrderType={setOrderType}
                 address={address}
+                processing={processing}
+                executeOrder={executeOrder}
+                marketPrice={price}
+                account={account}
               />
             </div>
 
@@ -655,7 +682,12 @@ export default function DEX() {
             <div className="w-1/2 flex flex-col bg-[#161a1e] p-1 space-y-1">
               {/* Open Orders - Takes 1/3 of the height */}
               <div className="h-1/3">
-                <OpenOrders account={account} address={address} />
+                <OpenOrders
+                  account={account}
+                  address={address}
+                  processing={processing}
+                  executeOrder={executeOrder}
+                />
               </div>
 
               {/* Wallet Balance - Takes 2/3 of the height */}
@@ -665,6 +697,8 @@ export default function DEX() {
                   pendingTransactions={pendingTransactions}
                   highlight={highlight}
                   faucet={faucet}
+                  processing={processing}
+                  createAccount={createAccount}
                 />
               </div>
             </div>

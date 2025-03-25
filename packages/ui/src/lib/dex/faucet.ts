@@ -4,15 +4,16 @@ import { publicKeyToU256 } from "./public-key";
 import { Transaction } from "@mysten/sui/transactions";
 import { getKey } from "./key";
 import { suiClient } from "./sui-client";
-import { executeTx, waitTx } from "./execute";
+import { executeTx } from "./execute";
 import { fetchDexAccount } from "./fetch";
 import { Operation } from "./types";
 import { signDexFields } from "./sign";
 import { wrapMinaSignature } from "./wrap";
+import { LastTransactionData } from "./ui/types";
+
 const faucetSecretKey: string = process.env.SECRET_KEY_3!;
 const faucetPublicKey: string = process.env.NEXT_PUBLIC_FAUCET_PUBLIC_KEY!;
 const faucetPrivateKey: string = process.env.FAUCET_PRIVATE_KEY!;
-const poolPublicKey: string = process.env.POOL_PUBLIC_KEY!;
 if (!faucetSecretKey) {
   throw new Error("Missing environment variables");
 }
@@ -24,26 +25,26 @@ if (!faucetPrivateKey) {
   throw new Error("FAUCET PRIVATE KEY is not set");
 }
 
-if (!poolPublicKey) {
-  throw new Error("POOL PUBLIC KEY is not set");
-}
-
 export async function faucet(
   user: string
-): Promise<{ digest: string; prepareDelay: number; executeDelay: number }> {
+): Promise<Partial<LastTransactionData>> {
   const start = Date.now();
   const config = await getConfig();
   const u256 = await publicKeyToU256(user);
   const u256String = u256.toString();
   const packageID = config.dex_package;
+  const poolPublicKey = config.mina_contract;
   const dexID = config.dex_object;
-
   if (!packageID) {
     throw new Error("PACKAGE_ID is not set");
   }
 
   if (!dexID) {
     throw new Error("DEX_ID is not set");
+  }
+
+  if (!poolPublicKey) {
+    throw new Error("POOL PUBLIC KEY is not set");
   }
 
   const { address, keypair } = await getKey({
@@ -128,13 +129,12 @@ export async function faucet(
   });
 
   const end = Date.now();
-  const prepareDelay = end - start;
-  const { digest, executeDelay } = await executeTx(signedTx);
-  console.log("Faucet:", {
-    digest,
-    prepareDelay,
-    executeDelay,
-  });
+  const prepareTime = end - start;
+  const result = await executeTx(signedTx);
+  console.log("Faucet:", result);
 
-  return { digest, prepareDelay, executeDelay };
+  return {
+    ...result,
+    prepareTime,
+  };
 }

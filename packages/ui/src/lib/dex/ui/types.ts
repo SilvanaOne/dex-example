@@ -5,7 +5,9 @@ export type TransactionType =
   | "faucet"
   | "createAccount"
   | "stake"
-  | "borrow";
+  | "borrow"
+  | "cancelBuy"
+  | "cancelSell";
 
 // export interface MinaBalance {
 //   amount: bigint;
@@ -62,9 +64,12 @@ export interface LastTransactionData {
   prepareTime: number;
   executeTime: number;
   indexTime?: number;
-  zkBlockNumber?: number;
-  zkCoordinationHash: string;
   minaTxHash?: string;
+  digest: string;
+  operationName: string;
+  blockNumber: number;
+  sequence: number;
+  operation: number;
   proofs?: TransactionProof[];
   errors?: TransactionError[];
 }
@@ -86,4 +91,15 @@ export interface NetworkInfoData {
   lastProvedBlockNumber: number;
   sequence: number;
   circuitDaHash: string;
+}
+
+export interface OrderFormState {
+  orderType: TransactionType;
+  amount?: string;
+  price?: string;
+  recipient: string;
+  collateral: string;
+  transferCurrency: "WETH" | "WUSD" | undefined;
+  stakeCurrency: "WETH" | "WUSD" | undefined;
+  borrowCurrency: "WETH" | "WUSD" | undefined;
 }

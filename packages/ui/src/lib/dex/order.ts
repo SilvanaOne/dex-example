@@ -10,11 +10,17 @@ import { Operation } from "./types";
 import { prepareSignPayload, convertMinaSignature } from "./sign";
 import { wrapMinaSignature } from "./wrap";
 import { TransactionType } from "./ui/types";
+import { LastTransactionData } from "./ui/types";
 
-const poolPublicKey: string = process.env.POOL_PUBLIC_KEY!;
-
-if (!poolPublicKey) {
-  throw new Error("POOL PUBLIC KEY is not set");
+export interface OrderPayload {
+  user: string;
+  payload: bigint[];
+  baseTokenAmount: bigint;
+  quoteTokenAmount?: bigint;
+  price?: bigint;
+  receiverPublicKey?: string;
+  nonce: bigint;
+  operation: Operation;
 }
 
 export async function prepareOrderPayload(params: {
@@ -23,13 +29,9 @@ export async function prepareOrderPayload(params: {
   price?: number;
   recipient?: string;
   type: TransactionType;
-}): Promise<{
-  payload: bigint[];
-  amount: bigint;
-  price?: bigint;
-  recipient?: string;
-  nonce: bigint;
-}> {
+  currency: "WETH" | "WUSD";
+}): Promise<OrderPayload> {
+  console.log("prepareOrderPayload", params);
   if (
     params.type !== "buy" &&
     params.type !== "sell" &&
@@ -37,12 +39,17 @@ export async function prepareOrderPayload(params: {
   ) {
     throw new Error("Invalid transaction type");
   }
-  const { user, type } = params;
+  const { user, type, currency } = params;
   const config = await getConfig();
   const u256 = await publicKeyToU256(user);
   const u256String = u256.toString();
   const packageID = config.dex_package;
   const dexID = config.dex_object;
+  const poolPublicKey = config.mina_contract;
+
+  if (!poolPublicKey) {
+    throw new Error("POOL PUBLIC KEY is not set");
+  }
 
   if (!packageID) {
     throw new Error("PACKAGE_ID is not set");
@@ -57,17 +64,24 @@ export async function prepareOrderPayload(params: {
     throw new Error("Cannot fetch accounts");
   }
   let nonce = userAccount.nonce;
-  let amount: bigint | undefined = BigInt(params.amount * 1_000_000) * 1000n;
+  if (type === "buy" || type === "sell" || type === "transfer") {
+    if (params.amount === undefined) {
+      throw new Error("Amount is not set");
+    }
+  }
+  let amount: bigint | undefined =
+    BigInt((params.amount ?? 0) * 1_000_000) * 1000n;
   let price: bigint | undefined = undefined;
   let recipient: string | undefined = undefined;
+
   if (type === "buy" || type === "sell") {
-    if (!params.price) {
+    if (params.price === undefined) {
       throw new Error("Price is not set");
     }
     price = BigInt(params.price * 1_000_000) * 1000n;
   }
   if (type === "transfer") {
-    if (!params.recipient) {
+    if (params.recipient === undefined) {
       throw new Error("Recipient is not set");
     }
     recipient = params.recipient;
@@ -80,40 +94,68 @@ export async function prepareOrderPayload(params: {
       ? Operation.ASK
       : Operation.TRANSFER;
 
+  const baseTokenAmount = currency === "WETH" ? amount : 0n;
+  const quoteTokenAmount =
+    currency === "WUSD" && type === "transfer"
+      ? amount
+      : type === "transfer"
+      ? 0n
+      : undefined;
+  const priceBigInt = type === "buy" || type === "sell" ? price : undefined;
+  const receiverPublicKey = type === "transfer" ? recipient : undefined;
+
   const payload = await prepareSignPayload({
     poolPublicKey: poolPublicKey,
     operation,
     nonce,
-    baseTokenAmount: amount,
-    price: price,
-    receiverPublicKey: recipient,
+    baseTokenAmount,
+    quoteTokenAmount,
+    price: priceBigInt,
+    receiverPublicKey,
   });
-  return { payload: payload.minaData, amount, price, recipient, nonce };
+  return {
+    user,
+    payload: payload.minaData,
+    baseTokenAmount,
+    quoteTokenAmount,
+    price: priceBigInt,
+    receiverPublicKey,
+    nonce,
+    operation,
+  };
 }
 
 export async function order(params: {
-  user: string;
-  amount: bigint;
-  price?: bigint;
-  recipient?: string;
-  nonce: bigint;
-  payload: bigint[];
+  orderPayload: OrderPayload;
   signature: string;
-  type: TransactionType;
   key?: string;
-}): Promise<{ digest: string; prepareDelay: number; executeDelay: number }> {
+}): Promise<Partial<LastTransactionData>> {
+  console.log("order", params);
   const start = Date.now();
-  const { user, amount, price, payload, type } = params;
+  const { orderPayload } = params;
+  const {
+    user,
+    baseTokenAmount,
+    quoteTokenAmount,
+    price,
+    receiverPublicKey,
+    operation,
+  } = orderPayload;
   let keyPromise: Promise<string> | undefined = undefined;
   if (params.key) {
     keyPromise = undefined;
   } else {
     keyPromise = getUserKey();
   }
-  const u256 = await publicKeyToU256(params.user);
+  const u256 = await publicKeyToU256(user);
   const u256String = u256.toString();
   const userAccountPromise = fetchDexAccount({ addressU256: u256String });
   const config = await getConfig();
+  const poolPublicKey = config.mina_contract;
+
+  if (!poolPublicKey) {
+    throw new Error("POOL PUBLIC KEY is not set");
+  }
 
   const userAccount = await userAccountPromise;
   if (!userAccount) {
@@ -133,43 +175,103 @@ export async function order(params: {
   const signature = await convertMinaSignature(params.signature);
 
   let nonce = userAccount.nonce;
-  if (nonce !== params.nonce) {
+  if (nonce !== orderPayload.nonce) {
     throw new Error("Nonce mismatch");
   }
 
   const tx = new Transaction();
 
-  console.time("bid state");
   const { minaSignature, suiSignature } = await wrapMinaSignature({
     minaSignature: signature,
     minaPublicKey: user,
     poolPublicKey: poolPublicKey,
-    operation: Operation.BID,
+    operation,
     nonce,
-    baseTokenAmount: amount,
-    price: price,
+    baseTokenAmount,
+    quoteTokenAmount,
+    price,
+    receiverPublicKey,
   });
 
-  if (!amount || !price) {
-    throw new Error("Amount or price is not set");
+  if (operation === Operation.BID) {
+    if (price === undefined) {
+      throw new Error("Price is not set");
+    }
+
+    if (baseTokenAmount === undefined) {
+      throw new Error("Base token amount is not set");
+    }
+
+    const bidArguments = [
+      tx.object(dexID),
+      tx.pure.u256(u256),
+      tx.pure.u64(baseTokenAmount),
+      tx.pure.u64(price),
+      tx.pure.u256(minaSignature.r),
+      tx.pure.u256(minaSignature.s),
+      tx.pure.vector("u8", suiSignature),
+    ];
+
+    tx.moveCall({
+      package: packageID,
+      module: "transactions",
+      function: "bid",
+      arguments: bidArguments,
+    });
   }
 
-  const bidArguments = [
-    tx.object(dexID),
-    tx.pure.u256(u256),
-    tx.pure.u64(amount),
-    tx.pure.u64(price),
-    tx.pure.u256(minaSignature.r),
-    tx.pure.u256(minaSignature.s),
-    tx.pure.vector("u8", suiSignature),
-  ];
+  if (operation === Operation.ASK) {
+    if (price === undefined) {
+      throw new Error("Price is not set");
+    }
 
-  tx.moveCall({
-    package: packageID,
-    module: "transactions",
-    function: "bid",
-    arguments: bidArguments,
-  });
+    if (baseTokenAmount === undefined) {
+      throw new Error("Base token amount is not set");
+    }
+
+    const askArguments = [
+      tx.object(dexID),
+      tx.pure.u256(u256),
+      tx.pure.u64(baseTokenAmount),
+      tx.pure.u64(price),
+      tx.pure.u256(minaSignature.r),
+      tx.pure.u256(minaSignature.s),
+      tx.pure.vector("u8", suiSignature),
+    ];
+
+    tx.moveCall({
+      package: packageID,
+      module: "transactions",
+      function: "ask",
+      arguments: askArguments,
+    });
+  }
+
+  if (operation === Operation.TRANSFER) {
+    if (quoteTokenAmount === undefined) {
+      throw new Error("Quote token amount is not set");
+    }
+    if (!receiverPublicKey) {
+      throw new Error("Receiver public key is not set");
+    }
+    const transferArguments = [
+      tx.object(dexID),
+      tx.pure.u256(u256),
+      tx.pure.u256(await publicKeyToU256(receiverPublicKey)),
+      tx.pure.u64(baseTokenAmount),
+      tx.pure.u64(quoteTokenAmount),
+      tx.pure.u256(minaSignature.r),
+      tx.pure.u256(minaSignature.s),
+      tx.pure.vector("u8", suiSignature),
+    ];
+
+    tx.moveCall({
+      package: packageID,
+      module: "transactions",
+      function: "transfer",
+      arguments: transferArguments,
+    });
+  }
 
   const key = params.key ?? (await keyPromise);
   const { address, keypair } = await getKey({
@@ -186,13 +288,9 @@ export async function order(params: {
   });
 
   const end = Date.now();
-  const prepareDelay = end - start;
-  const { digest, executeDelay } = await executeTx(signedTx);
-  console.log("Bid:", {
-    digest,
-    prepareDelay,
-    executeDelay,
-  });
+  const prepareTime = end - start;
+  const result = await executeTx(signedTx);
+  console.log("tx result:", result);
 
-  return { digest, prepareDelay, executeDelay };
+  return { ...result, prepareTime };
 }

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { shortenString } from "@/lib/dex/ui/short";
 import { NetworkInfoData } from "@/lib/dex/ui/types";
-
+import { explorerAccountUrl, suiExplorerObjectUrl } from "@/lib/chain";
 interface NetworkInfoProps {
   networkInfo?: NetworkInfoData;
 }
@@ -31,16 +31,31 @@ export default function NetworkInfo({ networkInfo }: NetworkInfoProps) {
         <div className="flex justify-between mb-0.5">
           <span className="text-[#848e9c]">Mina Contract:</span>
           <span className="text-white">
-            {shortenString(networkInfo?.minaContractAddress ?? "", 10)}
+            <a
+              href={
+                explorerAccountUrl() + (networkInfo?.minaContractAddress ?? "")
+              }
+              className="text-accent hover:underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {shortenString(networkInfo?.minaContractAddress ?? "", 10)}
+            </a>
           </span>
         </div>
         <div className="flex justify-between mb-0.5">
           <span className="text-[#848e9c]">Mina Circuit ID:</span>
           <span className="text-white">
-            {shortenString(networkInfo?.minaCircuitId ?? "", 10)}
+            <a
+              href={suiExplorerObjectUrl(networkInfo?.minaCircuitId ?? "")}
+              className="text-accent hover:underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {shortenString(networkInfo?.minaCircuitId ?? "", 10)}
+            </a>
           </span>
         </div>
-
         <div className="flex justify-between mb-0.5">
           <span className="text-[#848e9c]">ZK Coordination:</span>
           <span className="text-white">
@@ -50,7 +65,14 @@ export default function NetworkInfo({ networkInfo }: NetworkInfoProps) {
         <div className="flex justify-between mb-0.5">
           <span className="text-[#848e9c]">Sui Address:</span>
           <span className="text-white">
-            {shortenString(networkInfo?.suiAddress ?? "", 10)}
+            <a
+              href={suiExplorerObjectUrl(networkInfo?.suiAddress ?? "")}
+              className="text-accent hover:underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {shortenString(networkInfo?.suiAddress ?? "", 10)}
+            </a>
           </span>
         </div>
         <div className="flex justify-between mb-0.5">

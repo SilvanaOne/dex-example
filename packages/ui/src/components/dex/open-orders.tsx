@@ -1,13 +1,22 @@
 "use client";
 
 import type { UserTradingAccount } from "@/lib/dex/types";
+import { OrderFormState, TransactionType } from "@/lib/dex/ui/types";
+import Processing from "@/components/dex/ui/processing";
 
 interface OpenOrdersProps {
   account: UserTradingAccount | undefined;
   address: string | undefined;
+  executeOrder: (order: OrderFormState) => void;
+  processing: TransactionType | undefined;
 }
 
-export default function OpenOrders({ account, address }: OpenOrdersProps) {
+export default function OpenOrders({
+  account,
+  address,
+  executeOrder,
+  processing,
+}: OpenOrdersProps) {
   const formatBalance = (num: bigint | undefined): string => {
     if (num === undefined) return "-";
     const fixed = (Number(BigInt(num) / 1_000n) / 1_000_000).toLocaleString(
@@ -21,7 +30,16 @@ export default function OpenOrders({ account, address }: OpenOrdersProps) {
 
   const handleCancelOrder = (type: "bid" | "ask") => {
     console.log(`Cancelling ${type} order`);
-    // Here you would call your order cancellation function
+    executeOrder({
+      orderType: type === "bid" ? "cancelBuy" : "cancelSell",
+      amount: "0",
+      price: "0",
+      recipient: "",
+      collateral: "",
+      transferCurrency: "WETH",
+      stakeCurrency: undefined,
+      borrowCurrency: undefined,
+    });
   };
 
   if (!address) {
@@ -76,9 +94,17 @@ export default function OpenOrders({ account, address }: OpenOrdersProps) {
               </div>
               <button
                 onClick={() => handleCancelOrder("bid")}
-                className="w-full bg-[#2a2e37]  text-[#848e9c] hover:bg-[#1a70e0] hover:text-white rounded py-0.5 text-[9px] transition-colors"
+                disabled={processing !== undefined}
+                className="w-full bg-[#2a2e37] text-[#848e9c] hover:bg-[#1a70e0] hover:text-white rounded py-0.5 text-[9px] transition-colors flex items-center justify-center"
               >
-                Cancel
+                {processing === "cancelBuy" ? (
+                  <>
+                    <Processing />
+                    Cancelling...
+                  </>
+                ) : (
+                  "Cancel"
+                )}
               </button>
             </>
           )}
@@ -113,9 +139,17 @@ export default function OpenOrders({ account, address }: OpenOrdersProps) {
               </div>
               <button
                 onClick={() => handleCancelOrder("ask")}
-                className="w-full bg-[#2a2e37]  text-[#848e9c] hover:bg-[#1a70e0] hover:text-white  rounded py-0.5 text-[9px] transition-colors"
+                disabled={processing !== undefined}
+                className="w-full bg-[#2a2e37] text-[#848e9c] hover:bg-[#1a70e0] hover:text-white rounded py-0.5 text-[9px] transition-colors flex items-center justify-center"
               >
-                Cancel
+                {processing === "cancelSell" ? (
+                  <>
+                    <Processing />
+                    Cancelling...
+                  </>
+                ) : (
+                  "Cancel"
+                )}
               </button>
             </>
           )}
