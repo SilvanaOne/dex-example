@@ -1,7 +1,7 @@
 "use client";
 
-import type { UserTradingAccount } from "@/lib/dex/types";
-import { OrderFormState, TransactionType } from "@/lib/dex/ui/types";
+import type { UserTradingAccount } from "@dex-example/lib";
+import { OrderFormState, TransactionType } from "@dex-example/lib";
 import Processing from "@/components/dex/ui/processing";
 
 interface OpenOrdersProps {

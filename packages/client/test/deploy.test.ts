@@ -293,7 +293,7 @@ describe("Deploy DEX contracts", async () => {
       throw new Error("block ID is not set");
     }
 
-    const blockData = await fetchBlock({ blockID });
+    const blockData = await fetchBlock({ blockNumber: 0 });
     const map = new DEXMap();
     blockData.map = serializeIndexedMap(map);
 
@@ -372,8 +372,8 @@ public fun update_block_state_data_availability(
     const tx = new Transaction();
 
     const blockArguments = [
-      tx.object(adminID),
-      tx.object(blockID),
+      tx.object(dexID),
+      tx.pure.u64(BigInt(0)),
       tx.pure.string(blockBlobId),
       tx.object(SUI_CLOCK_OBJECT_ID),
     ];
@@ -395,8 +395,8 @@ public fun update_block_state_data_availability(
     */
 
     const minaTxHashArguments = [
-      tx.object(adminID),
-      tx.object(blockID),
+      tx.object(dexID),
+      tx.pure.u64(BigInt(0)),
       tx.pure.string(minaContractHash),
       tx.object(SUI_CLOCK_OBJECT_ID),
     ];

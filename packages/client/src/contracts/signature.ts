@@ -21,7 +21,8 @@ export function getMinaSignatureData(params: {
   } = params;
   const minaData: Field[] = [
     Field(DEX_SIGNATURE_CONTEXT),
-    Poseidon.hashPacked(PublicKey, poolPublicKey),
+    poolPublicKey.x,
+    poolPublicKey.isOdd.toField(),
     Field(operation),
     nonce.value,
   ];
@@ -29,6 +30,6 @@ export function getMinaSignatureData(params: {
   if (quoteTokenAmount !== undefined) minaData.push(quoteTokenAmount.value);
   if (price !== undefined) minaData.push(price.value);
   if (receiverPublicKey !== undefined)
-    minaData.push(Poseidon.hashPacked(PublicKey, receiverPublicKey));
+    minaData.push(receiverPublicKey.x, receiverPublicKey.isOdd.toField());
   return minaData;
 }

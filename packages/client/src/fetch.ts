@@ -62,10 +62,52 @@ export async function fetchDexObject() {
   return data;
 }
 
-export async function fetchDex() {
-  const dexObject = await fetchDexObject();
-  return (dexObject?.data?.content as any)?.fields;
+interface DexObject {
+  actionsState: number[];
+  admin: string;
+  block_number: string;
+  circuit: {
+    type: string;
+    fields: any;
+  };
+  circuit_address: string;
+  id: {
+    id: string;
+  };
+  isPaused: boolean;
+  last_proved_block_number: string;
+  last_proved_sequence: string;
+  name: string;
+  pool: {
+    type: string;
+    fields: any;
+  };
+  previous_block_actions_state: number[];
+  previous_block_address: string;
+  previous_block_last_sequence: string;
+  previous_block_timestamp: string;
+  proof_calculations: {
+    type: string;
+    fields: any;
+  };
+  blocks: {
+    type: string;
+    fields: any;
+  };
+  public_key: number[];
+  sequence: string;
+  version: number;
 }
+
+export async function fetchDex(): Promise<DexObject | undefined> {
+  const dexObject = await fetchDexObject();
+  return (dexObject?.data?.content as any)?.fields as DexObject;
+}
+
+// export async function fetchDex() {
+//   const dexObject = await fetchDexObject();
+//   return (dexObject?.data?.content as any)?.fields;
+// }
 
 export async function fetchDexAccount(
   address: string
@@ -225,11 +267,30 @@ export async function fetchDexEvents(params: {
 }
 
 export async function fetchBlock(params: {
-  blockID: string;
+  blockNumber: number;
 }): Promise<BlockData> {
-  const { blockID } = params;
-  const fetchedBlock = await fetchSuiObject(blockID);
-  const rawBlock = (fetchedBlock?.data?.content as any)?.fields as RawBlock;
+  const { blockNumber } = params;
+  const dex = await fetchDexObject();
+  //console.log("dex", dex);
+  //console.log("dex.data", (dex?.data?.content as any)?.fields);
+  const dexData = (dex?.data?.content as any)?.fields?.blocks?.fields?.id?.id;
+  console.log("blocks id", dexData);
+  if (!dexData || typeof dexData !== "string") {
+    throw new Error("DEX_DATA is not received");
+  }
+  const blocks = await suiClient.getDynamicFieldObject({
+    parentId: dexData,
+    name: {
+      type: "u64",
+      value: blockNumber.toString(),
+    },
+  });
+  const rawBlock = (blocks.data?.content as any)?.fields as RawBlock;
+  // return data;
+
+  // const blockID = dex.blocks.fields.contents[blockNumber].fields.id.id;
+  // const fetchedBlock = await fetchSuiObject(blockID);
+  // const rawBlock = (fetchedBlock?.data?.content as any)?.fields as RawBlock;
   if (!rawBlock) {
     throw new Error("raw block is not received");
   }
@@ -246,7 +307,6 @@ export async function fetchBlock(params: {
   //console.log(`blockEvents:`, blockEvents);
   const blockData: BlockData = {
     block,
-    blockID,
     events: blockEvents ?? [],
   };
   return blockData;
@@ -265,7 +325,7 @@ export async function fetchSequenceData(params: {
   if (!blockNumber || blockNumber < 1) {
     throw new Error("Incorrect block number");
   }
-  const previousBlockNumber = blockNumber - 1;
+  let previousBlockNumber = blockNumber - 1;
   //console.log("fetching dex data", dexID);
   const dex = await fetchSuiObject(dexID);
   const dexData = (dex?.data?.content as any)?.fields;
@@ -279,21 +339,21 @@ export async function fetchSequenceData(params: {
     throw new Error("DEX_DATA is not received");
   }
   const poolPublicKey = dexData?.pool?.fields?.publicKeyBase58;
-  let previousBlockAddress = dexData?.previous_block_address;
-  let blockData = await fetchBlock({ blockID: previousBlockAddress });
+  //let previousBlockAddress = dexData?.previous_block_address;
+  let blockData = await fetchBlock({ blockNumber: previousBlockNumber });
   while (
     blockData?.block?.block_number > previousBlockNumber ||
     blockData?.block?.state_data_availability === undefined
   ) {
-    previousBlockAddress = blockData?.block?.previous_block_address;
-    if (!previousBlockAddress) {
-      throw new Error("Previous block address is not received");
+    previousBlockNumber--;
+    if (previousBlockNumber < 0) {
+      throw new Error("Previous block number is not correct");
     }
-    blockData = await fetchBlock({ blockID: previousBlockAddress });
+    blockData = await fetchBlock({ blockNumber: previousBlockNumber });
   }
-  if (blockData?.block?.block_number > previousBlockNumber) {
-    throw new Error("Fetched block number is not correct");
-  }
+  // if (blockData?.block?.block_number > previousBlockNumber) {
+  //   throw new Error("Fetched block number is not correct");
+  // }
   const dataAvailability = blockData?.block?.state_data_availability;
   if (!dataAvailability) {
     throw new Error("Data availability is not received");

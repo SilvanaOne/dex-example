@@ -54,6 +54,9 @@ describe("Prove", async () => {
         }
         if (newEvents.length === 0) {
           const dex = await fetchDex();
+          if (!dex) {
+            throw new Error("DEX data not found");
+          }
           const new_last_proved_block_number = Number(
             dex.last_proved_block_number
           );

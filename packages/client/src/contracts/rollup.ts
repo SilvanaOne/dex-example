@@ -309,9 +309,7 @@ export const DEXProgram = ZkProgram({
       }> {
         action.baseTokenAmount
           .equals(UInt64.zero)
-          .assertFalse("amount is zero");
-        action.quoteTokenAmount
-          .equals(UInt64.zero)
+          .and(action.quoteTokenAmount.equals(UInt64.zero))
           .assertFalse("amount is zero");
 
         map.root.assertEquals(input.root);
@@ -470,7 +468,10 @@ export class SequenceState {
 
   static async fromJSON(str: string): Promise<SequenceState> {
     const data = JSON.parse(str, (key, value) =>
-      typeof value === "string" && value.endsWith("n") && key !== "proof"
+      typeof value === "string" &&
+      value.endsWith("n") &&
+      key !== "proof" &&
+      !value.startsWith("B62")
         ? BigInt(value.slice(0, -1))
         : value
     );

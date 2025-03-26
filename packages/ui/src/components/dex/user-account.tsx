@@ -1,11 +1,11 @@
 "use client";
 
-import type { UserTradingAccount } from "@/lib/dex/types";
 import type {
   PendingTransactions,
   TransactionType,
   OrderFormState,
-} from "@/lib/dex/ui/types";
+  UserTradingAccount,
+} from "@dex-example/lib";
 import { useState } from "react";
 import Processing from "./ui/processing";
 

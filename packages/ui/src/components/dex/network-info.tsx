@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { shortenString } from "@/lib/dex/ui/short";
-import { NetworkInfoData } from "@/lib/dex/ui/types";
+import { shortenString } from "@/lib/short";
+import { NetworkInfoData } from "@dex-example/lib";
 import { explorerAccountUrl, suiExplorerObjectUrl } from "@/lib/chain";
 interface NetworkInfoProps {
   networkInfo?: NetworkInfoData;

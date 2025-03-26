@@ -111,25 +111,28 @@ describe("Settle", async () => {
         );
       }
       const dex = await fetchDex();
-      let block_address: string | undefined = undefined;
-      let previous_block_address = dex.previous_block_address;
-      let current_block_number = Number(dex.block_number);
+      if (!dex) {
+        throw new Error("DEX is not received");
+      }
+      let block_number: number | undefined = undefined;
+      let previous_block_number: number | undefined = undefined;
+      let current_block_number = Number(dex.block_number) - 1;
       console.log("current_block_number", current_block_number);
-      console.log("previous_block_address", previous_block_address);
+      //console.log("previous_block_address", previous_block_address);
 
-      while (!block_address && current_block_number > currentMinaBlockNumber) {
-        const block = await fetchBlock({ blockID: previous_block_address });
-        current_block_number = Number(block.block.block_number);
-        console.log("block", current_block_number);
+      while (!block_number && current_block_number > currentMinaBlockNumber) {
+        const block = await fetchBlock({ blockNumber: current_block_number });
+        block_number = Number(block.block.block_number);
+        console.log("block", block_number);
 
         if (current_block_number === currentMinaBlockNumber) {
-          block_address = previous_block_address;
+          block_number = previous_block_number;
         }
-        previous_block_address = block.block.previous_block_address;
+        previous_block_number = current_block_number + 1;
       }
-      console.log("block_address", block_address);
-      if (block_address) {
-        const block = await fetchBlock({ blockID: block_address });
+      console.log("block_number", block_number);
+      if (block_number) {
+        const block = await fetchBlock({ blockNumber: block_number });
         console.log("block.block.mina_tx_hash", block.block.mina_tx_hash);
         console.log(
           "mina_tx_included_in_block",
@@ -150,7 +153,7 @@ describe("Settle", async () => {
           const proofs = await fetchBlockProofs({
             blockNumber: currentMinaBlockNumber,
           });
-          if (proofs.isFinished && proofs.blockProof && block_address) {
+          if (proofs.isFinished && proofs.blockProof && block_number) {
             console.log("Settling block", currentMinaBlockNumber);
             const blockProof = proofs.blockProof;
             const proofData = await readFromWalrus({
@@ -167,7 +170,6 @@ describe("Settle", async () => {
               poolPublicKey,
               adminPrivateKey: minaAdminSecretKey,
               proof: state.dexProof,
-              blockID: block_address,
             });
             currentMinaBlockNumber++;
           } else {

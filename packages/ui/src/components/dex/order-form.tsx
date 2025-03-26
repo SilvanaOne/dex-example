@@ -3,8 +3,11 @@
 import type React from "react";
 
 import { useState } from "react";
-import type { TransactionType, OrderFormState } from "@/lib/dex/ui/types";
-import type { UserTradingAccount } from "@/lib/dex/types";
+import type {
+  TransactionType,
+  OrderFormState,
+  UserTradingAccount,
+} from "@dex-example/lib";
 import Processing from "@/components/dex/ui/processing";
 import { formatBalance } from "@/lib/format";
 

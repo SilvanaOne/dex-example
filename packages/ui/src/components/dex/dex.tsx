@@ -2,15 +2,26 @@
 
 import { useState, useEffect, useContext } from "react";
 import { shortenString } from "@/lib/short";
-import type {
+import {
   PendingTransactions,
   TransactionType,
   LastTransactionData,
   LastTransactionErrors,
   NetworkInfoData,
   OrderFormState,
-} from "@/lib/dex/ui/types";
-import type { UserTradingAccount } from "@/lib/dex/types";
+  UserTradingAccount,
+  fetchDexAccount,
+  publicKeyToU256,
+  DexConfig,
+  getConfig,
+  createAccount as createDexAccount,
+  faucet as dexFaucet,
+  waitTx,
+  order as dexOrder,
+  prepareOrderPayload,
+  getUserKey,
+  getNetworkInfo,
+} from "@dex-example/lib";
 import OrderBook from "@/components/dex/order-book";
 import { OrderForm } from "@/components/dex/order-form";
 import UserAccount from "@/components/dex/user-account";
@@ -30,15 +41,7 @@ import { AddressContext } from "@/context/address";
 import { getWalletInfo, connectWallet } from "@/lib/wallet";
 import { checkAddress } from "@/lib/address";
 import { log } from "@/lib/log";
-import { fetchDexAccount } from "@/lib/dex/fetch";
-import { publicKeyToU256 } from "@/lib/dex/public-key";
-import { DexConfig, getConfig } from "@/lib/dex/config";
-import { createAccount as createDexAccount } from "@/lib/dex/account";
-import { faucet as dexFaucet } from "@/lib/dex/faucet";
-import { waitTx } from "@/dex/execute";
-import { order as dexOrder, prepareOrderPayload } from "@/lib/dex/order";
-import { getUserKey } from "@/lib/dex/key";
-import { getNetworkInfo } from "@/lib/dex/info";
+
 import { mockTransactions } from "./mock";
 const DEBUG = process.env.NEXT_PUBLIC_DEBUG === "true";
 

@@ -2,20 +2,8 @@
 
 import "@/public/styles/style.css";
 import "swiper/css";
-// import "swiper/css/pagination";
-// import "tippy.js/dist/tippy.css";
-//import "react-modal-video/css/modal-video.css";
-import TokenHeader from "@/components/headers/TokenHeader";
-import { usePathname } from "next/navigation";
-import { MintAddressesModal } from "@/components/modals/MintAddressesModal";
-import { TraitsModal } from "@/components/modals/TraitsModal";
-import { PermissionsModal } from "@/components/modals/PermissionsModal";
 import ModeChanger from "@/components/common/ModeChanger";
-import { LaunchTokenProvider } from "@/context/launch";
-import { TokenDetailsProvider } from "@/context/details";
-import { SearchProvider } from "@/context/search";
 import { AddressProvider } from "@/context/address";
-import { TransactionStoreProvider } from "@/context/tx-provider";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
@@ -33,14 +21,6 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
-
-  // Define routes where you want to show the search bar
-  const routesWithSearch = ["/", "/explore"];
-
-  // Determine if the search bar should be shown on the current route
-  const showSearch = pathname ? routesWithSearch.includes(pathname) : false;
-
   return (
     <>
       <html lang="en" className="dark" suppressHydrationWarning={true}>
@@ -55,25 +35,10 @@ export default function RootLayout({
           className="overflow-x-hidden font-body text-jacarta-500 dark:bg-jacarta-900"
           suppressHydrationWarning={true}
         >
-          <SearchProvider>
-            <AddressProvider>
-              <LaunchTokenProvider>
-                <TokenDetailsProvider>
-                  <TransactionStoreProvider>
-                    <ModeChanger />
-                    {/* <TokenHeader showSearch={false} /> */}
-                    {children}
-                    <MintAddressesModal onSubmit={() => {}} />
-                    <TraitsModal onSubmit={() => {}} />
-                    <PermissionsModal
-                      onSubmit={() => {}}
-                      mintType={"collection"}
-                    />
-                  </TransactionStoreProvider>
-                </TokenDetailsProvider>
-              </LaunchTokenProvider>
-            </AddressProvider>
-          </SearchProvider>
+          <AddressProvider>
+            <ModeChanger />
+            {children}
+          </AddressProvider>
           <Analytics />
           <SpeedInsights />
           <Script

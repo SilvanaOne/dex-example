@@ -6,7 +6,7 @@ import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 import { getKey } from "../src/key.js";
 import { suiClient } from "../src/sui-client.js";
 import { executeTx, waitTx } from "../src/execute.js";
-import { fetchBlock, fetchSequenceData } from "../src/fetch.js";
+import { fetchBlock, fetchDex, fetchSequenceData } from "../src/fetch.js";
 import { readFromWalrus, saveToWalrus } from "../src/walrus.js";
 import { BlockData } from "../src/types.js";
 import { writeFile } from "node:fs/promises";
@@ -21,7 +21,7 @@ if (!adminSecretKey) {
 const packageID = process.env.PACKAGE_ID;
 const dexID = process.env.DEX_ID;
 const adminID = process.env.ADMIN_ID;
-let blockID: string | undefined = undefined;
+let blockNumber: number | undefined = undefined;
 let blockBlobId: string | undefined = undefined;
 
 describe("DEX Block", async () => {
@@ -43,6 +43,12 @@ describe("DEX Block", async () => {
       name: "admin",
     });
 
+    const dex = await fetchDex();
+    blockNumber = dex?.block_number ? parseInt(dex.block_number) : undefined;
+    if (!blockNumber) {
+      throw new Error("block number is not set");
+    }
+
     /*
     public fun create_block(dex: &mut DEX, pool: &Pool, clock: &Clock, ctx: &mut TxContext)
     */
@@ -50,7 +56,7 @@ describe("DEX Block", async () => {
     const tx = new Transaction();
 
     const blockArguments = [
-      tx.object(adminID),
+      //tx.object(adminID),
       tx.object(dexID),
       tx.object(SUI_CLOCK_OBJECT_ID),
     ];
@@ -75,17 +81,17 @@ describe("DEX Block", async () => {
       digest,
     });
 
-    createBlockTx.objectChanges?.map((change) => {
-      if (
-        change.type === "created" &&
-        change.objectType.endsWith("main::Block") &&
-        !change.objectType.includes("display")
-      ) {
-        blockID = change.objectId;
-      }
-    });
-    console.log(`blockID:`, blockID);
-    assert.ok(blockID, "block ID is not set");
+    // createBlockTx.objectChanges?.map((change) => {
+    //   if (
+    //     change.type === "created" &&
+    //     change.objectType.endsWith("main::Block") &&
+    //     !change.objectType.includes("display")
+    //   ) {
+    //     blockID = change.objectId;
+    //   }
+    // });
+    // console.log(`blockID:`, blockID);
+    // assert.ok(blockID, "block ID is not set");
     const waitResult = await waitTx(digest);
     if (waitResult.errors) {
       console.log(`Errors for tx ${digest}:`, waitResult.errors);
@@ -93,15 +99,15 @@ describe("DEX Block", async () => {
     assert.ok(!waitResult.errors, "create block transaction failed");
   });
   it("should save block and block state to Walrus", async () => {
-    if (!blockID) {
-      throw new Error("block ID is not set");
+    if (!blockNumber) {
+      throw new Error("block number is not set");
     }
 
     if (!adminAddress) {
       throw new Error("admin address is not set");
     }
 
-    const blockData = await fetchBlock({ blockID });
+    const blockData = await fetchBlock({ blockNumber });
     const sequenceData = await fetchSequenceData({
       sequence: blockData.block.block_state.sequence,
       blockNumber: blockData.block.block_number,
@@ -156,8 +162,8 @@ describe("DEX Block", async () => {
       throw new Error("ADMIN_ID is not set");
     }
 
-    if (!blockID) {
-      throw new Error("BLOCK_ID is not set");
+    if (!blockNumber) {
+      throw new Error("BLOCK_NUMBER is not set");
     }
 
     if (!blockBlobId) {
@@ -181,8 +187,8 @@ public fun update_block_state_data_availability(
     const tx = new Transaction();
 
     const blockArguments = [
-      tx.object(adminID),
-      tx.object(blockID),
+      tx.object(dexID),
+      tx.pure.u64(blockNumber),
       tx.pure.string(blockBlobId),
       tx.object(SUI_CLOCK_OBJECT_ID),
     ];
