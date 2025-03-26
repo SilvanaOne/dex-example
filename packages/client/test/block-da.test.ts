@@ -3,15 +3,15 @@ import assert from "node:assert";
 
 import { Transaction } from "@mysten/sui/transactions";
 import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
-import { getKey } from "../src/key.js";
-import { suiClient } from "../src/sui-client.js";
-import { executeTx, waitTx } from "../src/execute.js";
-import { fetchBlock, fetchSequenceData, fetchDex } from "../src/fetch.js";
-import { readFromWalrus, saveToWalrus } from "../src/walrus.js";
-import { BlockData } from "../src/types.js";
+import { getKey, suiClient, executeTx, waitTx } from "@dex-example/lib";
+import { fetchSequenceData } from "@dex-example/contracts";
+import { fetchBlock, fetchDex } from "@dex-example/lib";
+import { readFromWalrus, saveToWalrus } from "@dex-example/lib";
+import { ProvableBlockData } from "@dex-example/contracts";
 import { writeFile } from "node:fs/promises";
 import { serializeIndexedMap } from "@silvana-one/storage";
-import { calculateStateRoot } from "../src/contracts/state.js";
+import { calculateStateRoot } from "@dex-example/contracts";
+
 const adminSecretKey: string = process.env.ADMIN_SECRET_KEY!;
 const adminAddress: string = process.env.ADMIN!;
 if (!adminSecretKey) {
@@ -21,7 +21,7 @@ if (!adminSecretKey) {
 const packageID = process.env.PACKAGE_ID;
 const dexID = process.env.DEX_ID;
 const adminID = process.env.ADMIN_ID;
-let blockID: string | undefined = undefined;
+let lastBlockNumber: number | undefined = undefined;
 let blockBlobId: string | undefined = undefined;
 
 describe("DEX Block Data Availability", async () => {
@@ -38,30 +38,31 @@ describe("DEX Block Data Availability", async () => {
       throw new Error("ADMIN_ID is not set");
     }
     const dex = await fetchDex();
-    let blockAddress = dex.previous_block_address;
-    let nextBlockAddress: string | undefined = undefined;
-    while (!blockID) {
-      const block = await fetchBlock({ blockID: blockAddress });
+    if (!dex) {
+      throw new Error("DEX is not set");
+    }
+    let blockNumber = dex.block_number - 1;
+    while (!lastBlockNumber && blockNumber >= 0) {
+      const block = await fetchBlock({ blockNumber });
       console.log(`block:`, block.block.block_number);
       if (block.block.state_data_availability) {
-        blockID = nextBlockAddress;
+        lastBlockNumber = block.block.block_number + 1;
       } else {
-        nextBlockAddress = blockAddress;
-        blockAddress = block.block.previous_block_address;
+        blockNumber--;
       }
     }
-    console.log(`blockID:`, blockID);
+    console.log(`lastBlockNumber:`, lastBlockNumber);
   });
   it("should save block and block state to Walrus", async () => {
-    if (!blockID) {
-      throw new Error("block ID is not set");
+    if (!lastBlockNumber) {
+      throw new Error("last block number is not set");
     }
 
     if (!adminAddress) {
       throw new Error("admin address is not set");
     }
 
-    const blockData = await fetchBlock({ blockID });
+    const blockData = await fetchBlock({ blockNumber: lastBlockNumber });
     const sequenceData = await fetchSequenceData({
       sequence: blockData.block.block_state.sequence,
       blockNumber: blockData.block.block_number,
@@ -75,10 +76,13 @@ describe("DEX Block Data Availability", async () => {
     if (root !== sequenceData.map.root.toBigInt()) {
       throw new Error("state root does not match");
     }
-    blockData.map = serializeIndexedMap(sequenceData.map);
+    const provableBlockData: ProvableBlockData = {
+      ...blockData,
+      map: serializeIndexedMap(sequenceData.map),
+    };
     blockBlobId = await saveToWalrus({
       data: JSON.stringify(
-        blockData,
+        provableBlockData,
         (_, value) =>
           typeof value === "bigint" ? value.toString() + "n" : value,
         2
@@ -100,7 +104,7 @@ describe("DEX Block Data Availability", async () => {
     if (!block) {
       throw new Error("block is not received");
     }
-    const blockData = JSON.parse(block) as BlockData;
+    const blockData = JSON.parse(block) as ProvableBlockData;
     await writeFile(`./data/block-${blockData.block.block_number}.json`, block);
   });
   it("should save block and block state blobIds to Sui", async () => {
@@ -116,8 +120,8 @@ describe("DEX Block Data Availability", async () => {
       throw new Error("ADMIN_ID is not set");
     }
 
-    if (!blockID) {
-      throw new Error("BLOCK_ID is not set");
+    if (!lastBlockNumber) {
+      throw new Error("last block number is not set");
     }
 
     if (!blockBlobId) {
@@ -141,8 +145,8 @@ public fun update_block_state_data_availability(
     const tx = new Transaction();
 
     const blockArguments = [
-      tx.object(adminID),
-      tx.object(blockID),
+      tx.object(dexID),
+      tx.pure.u64(lastBlockNumber),
       tx.pure.string(blockBlobId),
       tx.object(SUI_CLOCK_OBJECT_ID),
     ];

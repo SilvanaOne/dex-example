@@ -2,13 +2,13 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "rootDir": "./src",
-    "outDir": "./dist/node"
+    "outDir": "./dist/node",
+    "composite": true
   },
   "references": [
-    { "path": "../upgradable" },
-    { "path": "../storage" },
-    { "path": "../mina-utils" }
+    { "path": "../lib" },
   ],
   "include": ["src/**/*"],
   "exclude": ["dist/**", "node_modules", "coverage", "cache"]
 }
+

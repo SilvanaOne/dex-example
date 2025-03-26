@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
 
-import { fetchEvents } from "../src/fetch.js";
-import { OperationEvent } from "../src/types.js";
+import { fetchEvents } from "@dex-example/lib";
+import { OperationEvent } from "@dex-example/lib";
 const packageID = process.env.PACKAGE_ID;
 
 describe("Events", async () => {

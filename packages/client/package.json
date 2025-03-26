@@ -40,11 +40,13 @@
     "@types/node": "^22.13.5",
     "@types/secp256k1": "^4.0.6",
     "dotenv": "^16.4.7",
+    "esbuild": "^0.25.1",
     "ts-node": "^10.9.2",
-    "typescript": "^5.7.3",
-    "esbuild": "^0.25.1"
+    "typescript": "^5.7.3"
   },
   "dependencies": {
+    "@dex-example/contracts": "^0.1.0",
+    "@dex-example/lib": "^0.1.0",
     "@mysten/sui": "^1.21.2",
     "@silvana-one/mina-utils": "^0.3.0",
     "@silvana-one/storage": "^0.3.0",

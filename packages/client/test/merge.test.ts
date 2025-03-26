@@ -5,24 +5,24 @@ import {
   fetchDexEvents,
   fetchDexObject,
   fetchDex,
-} from "../src/fetch.js";
-import { sleep } from "../src/sleep.js";
+} from "@dex-example/lib";
+import { sleep } from "@silvana-one/storage";
 import { EventId } from "@mysten/sui/client";
+import { fetchProofStatus, fetchBlockProofs } from "@dex-example/lib";
 import {
-  fetchProofStatus,
   fetchSequenceData,
-  fetchBlockProofs,
-} from "../src/fetch.js";
-import { submitProof, getProverSecretKey } from "../src/proof.js";
+  submitProof,
+  getProverSecretKey,
+} from "@dex-example/contracts";
 import {
   ProofStatus,
   BlockProofs,
   ProofStatusData,
   MergeProofRequest,
-} from "../src/types.js";
+} from "@dex-example/lib";
 import { Memory } from "@silvana-one/mina-utils";
-import { mergeProofs } from "../src/contracts/merge.js";
-import { SequenceState } from "../src/contracts/rollup.js";
+import { mergeProofs } from "@dex-example/contracts";
+import { SequenceState } from "@dex-example/contracts";
 
 describe("Merge proofs", async () => {
   it("should merge proofs", async () => {

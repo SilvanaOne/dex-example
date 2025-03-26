@@ -13,7 +13,7 @@ import {
   Provable,
   Cache,
 } from "o1js";
-import { DEXProgram } from "../src/contracts/rollup.js";
+import { DEXProgram } from "@dex-example/contracts";
 
 describe("Rollup", async () => {
   it("should analyze contracts methods", async () => {

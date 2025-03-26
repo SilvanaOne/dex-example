@@ -1,15 +1,22 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import {
-  createConfig,
-  getConfig,
-  updateConfig,
-  Config,
-} from "../src/config.js";
+import { getConfig, updateConfig, DexConfig, getKey } from "@dex-example/lib";
+import { createConfig } from "../src/config.js";
 
 const readOnly = false;
 
-const config: Config = {
+const adminSecretKey: string = process.env.ADMIN_SECRET_KEY!;
+if (!adminSecretKey) {
+  throw new Error("ADMIN_SECRET_KEY is not set");
+}
+
+const { address, keypair } = await getKey({
+  secretKey: adminSecretKey,
+  name: "admin",
+});
+
+const config: DexConfig = {
+  admin: address,
   dex_package: process.env.PACKAGE_ID || "",
   dex_object: process.env.DEX_ID || "",
   circuit_blob_id: process.env.CIRCUIT_BLOB_ID || "",

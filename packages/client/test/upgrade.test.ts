@@ -1,10 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { getKey } from "../src/key.js";
+import { getKey } from "@dex-example/lib";
 import { buildMovePackage } from "../src/build.js";
-import { executeTx, waitTx } from "../src/execute.js";
+import { executeTx, waitTx } from "@dex-example/lib";
 import { DexObjects } from "./helpers/dex.js";
-import { buildUpgradeTx } from "../src/upgrade.js";
+import { buildUpgradeTx } from "@dex-example/lib";
 import { readFile } from "node:fs/promises";
 
 const adminAddress: string = process.env.ADMIN!;

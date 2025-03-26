@@ -3,15 +3,21 @@ import assert from "node:assert";
 
 import { Transaction } from "@mysten/sui/transactions";
 import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
-import { getKey } from "../src/key.js";
-import { suiClient } from "../src/sui-client.js";
-import { executeTx, waitTx } from "../src/execute.js";
-import { fetchBlock, fetchDex, fetchSequenceData } from "../src/fetch.js";
-import { readFromWalrus, saveToWalrus } from "../src/walrus.js";
-import { BlockData } from "../src/types.js";
+import {
+  getKey,
+  suiClient,
+  executeTx,
+  waitTx,
+  fetchBlock,
+  fetchDex,
+  readFromWalrus,
+  saveToWalrus,
+  BlockData,
+} from "@dex-example/lib";
+import { fetchSequenceData, ProvableBlockData } from "@dex-example/contracts";
 import { writeFile } from "node:fs/promises";
 import { serializeIndexedMap } from "@silvana-one/storage";
-import { calculateStateRoot } from "../src/contracts/state.js";
+import { calculateStateRoot } from "@dex-example/contracts";
 const adminSecretKey: string = process.env.ADMIN_SECRET_KEY!;
 const adminAddress: string = process.env.ADMIN!;
 if (!adminSecretKey) {
@@ -44,7 +50,10 @@ describe("DEX Block", async () => {
     });
 
     const dex = await fetchDex();
-    blockNumber = dex?.block_number ? parseInt(dex.block_number) : undefined;
+    if (!dex) {
+      throw new Error("DEX is not set");
+    }
+    blockNumber = dex.block_number;
     if (!blockNumber) {
       throw new Error("block number is not set");
     }
@@ -121,10 +130,13 @@ describe("DEX Block", async () => {
     if (root !== sequenceData.map.root.toBigInt()) {
       throw new Error("state root does not match");
     }
-    blockData.map = serializeIndexedMap(sequenceData.map);
+    const provableBlockData: ProvableBlockData = {
+      ...blockData,
+      map: serializeIndexedMap(sequenceData.map),
+    };
     blockBlobId = await saveToWalrus({
       data: JSON.stringify(
-        blockData,
+        provableBlockData,
         (_, value) =>
           typeof value === "bigint" ? value.toString() + "n" : value,
         2
@@ -146,7 +158,7 @@ describe("DEX Block", async () => {
     if (!block) {
       throw new Error("block is not received");
     }
-    const blockData = JSON.parse(block) as BlockData;
+    const blockData = JSON.parse(block) as ProvableBlockData;
     await writeFile(`./data/block-${blockData.block.block_number}.json`, block);
   });
   it("should save block and block state blobIds to Sui", async () => {

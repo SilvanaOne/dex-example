@@ -2,16 +2,20 @@ import { describe, it } from "node:test";
 import assert from "node:assert";
 
 import { Transaction } from "@mysten/sui/transactions";
-import { getKey } from "../src/key.js";
 import { readFile } from "node:fs/promises";
-import { suiClient } from "../src/sui-client.js";
-import { executeTx, waitTx } from "../src/execute.js";
-import { publicKeyToU256 } from "../src/public-key.js";
+import {
+  suiClient,
+  executeTx,
+  waitTx,
+  getKey,
+  signDexFields,
+  wrapMinaSignature,
+  publicKeyToU256,
+  Operation,
+  UserTradingAccount,
+  fetchDexAccount,
+} from "@dex-example/lib";
 import { DexObjects } from "./helpers/dex.js";
-import { signDexFields } from "../src/sign.js";
-import { wrapMinaSignature } from "../src/wrap.js";
-import { Operation, UserTradingAccount } from "../src/types.js";
-import { fetchDexAccount } from "../src/fetch.js";
 
 const faucetSecretKey: string = process.env.SECRET_KEY_3!;
 
@@ -71,9 +75,15 @@ describe("Topup DEX users", async () => {
       name: "faucet",
     });
 
-    const faucetAccount = await fetchDexAccount(faucet.minaPublicKey);
-    const aliceAccount = await fetchDexAccount(alice.minaPublicKey);
-    const bobAccount = await fetchDexAccount(bob.minaPublicKey);
+    const faucetAccount = await fetchDexAccount({
+      addressU256: publicKeyToU256(faucet.minaPublicKey),
+    });
+    const aliceAccount = await fetchDexAccount({
+      addressU256: publicKeyToU256(alice.minaPublicKey),
+    });
+    const bobAccount = await fetchDexAccount({
+      addressU256: publicKeyToU256(bob.minaPublicKey),
+    });
     if (!faucetAccount || !aliceAccount || !bobAccount) {
       throw new Error("Cannot fetch accounts");
     }
@@ -96,7 +106,7 @@ describe("Topup DEX users", async () => {
       });
 
       const { minaSignature, suiSignature } = await wrapMinaSignature({
-        minaSignature: faucetSignature.minaSignature,
+        minaSignatureBase58: faucetSignature.minaSignatureBase58,
         minaPublicKey: faucet.minaPublicKey,
         poolPublicKey: pool.minaPublicKey,
         operation: Operation.TRANSFER,
@@ -156,9 +166,15 @@ describe("Topup DEX users", async () => {
     }
     assert.ok(!waitResult.errors, "topup transaction failed");
 
-    const newFaucetAccount = await fetchDexAccount(faucet.minaPublicKey);
-    const newAliceAccount = await fetchDexAccount(alice.minaPublicKey);
-    const newBobAccount = await fetchDexAccount(bob.minaPublicKey);
+    const newFaucetAccount = await fetchDexAccount({
+      addressU256: publicKeyToU256(faucet.minaPublicKey),
+    });
+    const newAliceAccount = await fetchDexAccount({
+      addressU256: publicKeyToU256(alice.minaPublicKey),
+    });
+    const newBobAccount = await fetchDexAccount({
+      addressU256: publicKeyToU256(bob.minaPublicKey),
+    });
     if (!newFaucetAccount || !newAliceAccount || !newBobAccount) {
       throw new Error("Cannot fetch accounts");
     }

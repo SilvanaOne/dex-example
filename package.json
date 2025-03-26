@@ -8,11 +8,12 @@
   "type": "module",
   "scripts": {
     "run:ui": "cd packages/ui && npm run dev",
-    "build": "npm run build -w packages/lib && npm run build -w packages/ui"
+    "build": "npm run build -w packages/lib && npm run build -w packages/contracts && npm run build -w packages/ui"
   },
   "workspaces": [
     "packages/client",
     "packages/ui",
-    "packages/lib"
+    "packages/lib",
+    "packages/contracts"
   ]
 }

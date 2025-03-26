@@ -1,9 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { DEXProgram } from "../src/contracts/rollup.js";
-import { DEXContract } from "../src/contracts/contract.js";
+import { DEXProgram, DEXContract } from "@dex-example/contracts";
 import { readFile, writeFile } from "node:fs/promises";
-import { saveToWalrus, readFromWalrus } from "../src/walrus.js";
+import { saveToWalrus, readFromWalrus } from "@dex-example/lib";
 import { Cache, VerificationKey } from "o1js";
 
 let vkProgram: VerificationKey | null = null;
@@ -30,7 +29,10 @@ describe("Store circuit", async () => {
   });
 
   it("should save to walrus", async () => {
-    const circuit = await readFile("./src/contracts/rollup.ts", "utf-8");
+    const circuit = await readFile(
+      "../contracts/src/contracts/rollup.ts",
+      "utf-8"
+    );
     blobId = await saveToWalrus({
       data: circuit,
       numEpochs: 100,

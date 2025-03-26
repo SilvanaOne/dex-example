@@ -1,4 +1,4 @@
-import { Token, Pool, User, UserTradingAccount } from "../../src/types.js";
+import { Token, Pool, User, UserTradingAccount } from "@dex-example/lib";
 import { PrivateKey, TokenId } from "o1js";
 
 export interface DexObjects {

@@ -1,18 +1,6 @@
 import { MinaSignature } from "../types.js";
 import { fromBase58Check } from "./base58.js";
-
-const versionNumbers = {
-  field: 1,
-  scalar: 1,
-  publicKey: 1,
-  signature: 1,
-};
-
-let versionBytes = {
-  publicKey: 203,
-  privateKey: 90,
-  signature: 154,
-};
+import { versionNumbers, versionBytes } from "./versions.js";
 
 type NonNegativeInteger<T extends number> = number extends T
   ? never

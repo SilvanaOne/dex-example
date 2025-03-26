@@ -1,16 +1,15 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { fetchEvents, fetchDexEvents, fetchBlock } from "../src/fetch.js";
-import { sleep } from "../src/sleep.js";
+import { fetchEvents, fetchDexEvents, fetchBlock } from "@dex-example/lib";
+import { sleep } from "@silvana-one/storage";
 import { EventId } from "@mysten/sui/client";
+import { fetchProofStatus, fetchDex, fetchBlockProofs } from "@dex-example/lib";
 import {
-  fetchProofStatus,
+  submitProof,
+  getProverSecretKey,
   fetchSequenceData,
-  fetchDex,
-  fetchBlockProofs,
-} from "../src/fetch.js";
-import { submitProof, getProverSecretKey } from "../src/proof.js";
-import { ProofStatus } from "../src/types.js";
+} from "@dex-example/contracts";
+import { ProofStatus } from "@dex-example/lib";
 import { Memory } from "@silvana-one/mina-utils";
 
 const packageID = process.env.PACKAGE_ID;

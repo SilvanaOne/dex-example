@@ -1,12 +1,8 @@
 import { SuiEvent } from "@mysten/sui/client";
 import { SignatureWithBytes } from "@mysten/sui/cryptography";
 import { suiClient } from "./sui-client.js";
-import { OperationNames } from "./types.js";
-import { LastTransactionData } from "./types.js";
-export async function executeTx(
-  tx: SignatureWithBytes
-): Promise<Partial<LastTransactionData>> {
-  const start = Date.now();
+
+export async function executeTx(tx: SignatureWithBytes) {
   const executedTx = await suiClient.executeTransactionBlock({
     transactionBlock: tx.bytes,
     signature: tx.signature,
@@ -18,41 +14,18 @@ export async function executeTx(
       showBalanceChanges: true,
     },
   });
-  console.log("executedTx", executedTx.events);
-  const events = executedTx.events;
-  const event = events?.find(
-    (event) => event.transactionModule === "transactions"
-  );
-  console.log("event", event?.parsedJson);
-  const blockNumber = Number(
-    (event?.parsedJson as any)?.operation?.block_number ?? 0
-  );
-  const sequence = Number((event?.parsedJson as any)?.operation?.sequence ?? 0);
-  const operation = Number(
-    (event?.parsedJson as any)?.operation?.operation ?? 0
-  );
-  const operationName =
-    operation && typeof operation === "number"
-      ? OperationNames[operation]
-      : "unknown";
-  const end = Date.now();
-  const executeTime = end - start;
-  console.log("tx execute, ms:", executeTime);
 
   if (executedTx.effects?.status?.status === "failure") {
-    console.log(
+    console.error(
       `Errors for tx ${executedTx.digest}:`,
       executedTx.effects?.status?.error
     );
     throw new Error(`tx execution failed: ${executedTx.digest}`);
   }
   return {
+    tx: executedTx,
     digest: executedTx.digest,
-    executeTime,
-    operationName,
-    blockNumber,
-    sequence,
-    operation,
+    events: (executedTx.events as SuiEvent[])?.[0]?.parsedJson as object,
   };
 }
 

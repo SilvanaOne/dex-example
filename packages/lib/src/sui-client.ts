@@ -1,8 +1,12 @@
 import { getFullnodeUrl, SuiClient, SuiEvent } from "@mysten/sui/client";
 
 export type SuiNetwork = "testnet" | "devnet" | "localnet" | "mainnet";
-export const network: SuiNetwork = process.env
-  .NEXT_PUBLIC_SUI_CHAIN! as SuiNetwork;
+export const network: SuiNetwork = (process.env.NEXT_PUBLIC_SUI_CHAIN ||
+  process.env.SUI_CHAIN) as SuiNetwork;
+
+if (!network) {
+  throw new Error("SUI_CHAIN is not set");
+}
 
 export const suiClient = new SuiClient({
   url: getUrl(network),

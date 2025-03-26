@@ -72,7 +72,6 @@ export interface Block {
   end_action_state: number[];
   state_data_availability: string | null;
   proof_data_availability: string | null;
-  previous_block_address: string;
   mina_tx_hash: string | null;
   mina_tx_included_in_block: boolean;
   block_state: BlockState;
@@ -111,6 +110,11 @@ export interface RawBlock {
       };
     };
   };
+}
+
+export interface BlockData {
+  block: Block;
+  events: OperationEvent[];
 }
 
 export interface MinaBalance {
@@ -254,6 +258,27 @@ export enum ProofStatus {
   CALCULATED = 1,
   REJECTED = 2,
   USED = 3,
+}
+
+export interface ProofStatusData {
+  da_hash: string;
+  status: ProofStatus;
+  timestamp: number;
+}
+
+export interface BlockProofs {
+  blockNumber: number;
+  blockProof: string;
+  startSequence: number;
+  endSequence?: number;
+  isFinished: boolean;
+  proofs: { sequences: number[]; status: ProofStatusData }[];
+}
+
+export interface MergeProofRequest {
+  blockNumber: number;
+  proof1: { sequences: number[]; status: ProofStatusData };
+  proof2: { sequences: number[]; status: ProofStatusData };
 }
 
 export interface ProofStatusData {

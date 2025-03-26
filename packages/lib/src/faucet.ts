@@ -12,8 +12,13 @@ import { wrapMinaSignature } from "./wrap.js";
 import { LastTransactionData } from "./types.js";
 
 const faucetSecretKey: string = process.env.SECRET_KEY_3!;
-const faucetPublicKey: string = process.env.NEXT_PUBLIC_FAUCET_PUBLIC_KEY!;
-const faucetPrivateKey: string = process.env.FAUCET_PRIVATE_KEY!;
+const faucetPublicKey: string =
+  process.env.NEXT_PUBLIC_FAUCET_PUBLIC_KEY ||
+  process.env.MINA_FAUCET_PUBLIC_KEY!;
+
+const faucetPrivateKey: string =
+  process.env.FAUCET_PRIVATE_KEY || process.env.MINA_FAUCET_PRIVATE_KEY!;
+
 if (!faucetSecretKey) {
   throw new Error("Missing environment variables");
 }
@@ -31,7 +36,6 @@ export async function faucet(
   const start = Date.now();
   const config = await getConfig();
   const u256 = publicKeyToU256(user);
-  const u256String = u256.toString();
   const packageID = config.dex_package;
   const poolPublicKey = config.mina_contract;
   const dexID = config.dex_object;
@@ -55,9 +59,9 @@ export async function faucet(
   const faucetU256 = publicKeyToU256(faucetPublicKey);
 
   const faucetAccount = await fetchDexAccount({
-    addressU256: faucetU256.toString(),
+    addressU256: faucetU256,
   });
-  const userAccount = await fetchDexAccount({ addressU256: u256String });
+  const userAccount = await fetchDexAccount({ addressU256: u256 });
   if (!faucetAccount || !userAccount) {
     throw new Error("Cannot fetch accounts");
   }

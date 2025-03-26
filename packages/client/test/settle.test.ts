@@ -1,17 +1,16 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { fetchDex, fetchBlock } from "../src/fetch.js";
-import { sleep } from "../src/sleep.js";
-import { fetchBlockProofs } from "../src/fetch.js";
-import { settleMinaContract } from "../src/settle.js";
+import { fetchDex, fetchBlock, readFromWalrus } from "@dex-example/lib";
+import { sleep } from "@silvana-one/storage";
+import { fetchBlockProofs } from "@dex-example/lib";
+import { settleMinaContract } from "@dex-example/contracts";
 import { DexObjects } from "./helpers/dex.js";
 import { readFile } from "node:fs/promises";
-import { readFromWalrus } from "../src/walrus.js";
-import { SequenceState } from "../src/contracts/rollup.js";
+import { SequenceState } from "@dex-example/contracts";
 import { fetchMinaAccount, initBlockchain } from "@silvana-one/mina-utils";
-import { DEXContract } from "../src/contracts/contract.js";
+import { DEXContract } from "@dex-example/contracts";
 import { PrivateKey, PublicKey } from "o1js";
-import { checkMinaContractDeployment } from "../src/deploy.js";
+import { checkMinaContractDeployment } from "@dex-example/contracts";
 
 let dexObjects: DexObjects | undefined = undefined;
 const minaAdminSecretKey: string = process.env.TEST_ACCOUNT_1_PRIVATE_KEY!;

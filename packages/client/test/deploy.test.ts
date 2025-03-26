@@ -2,22 +2,29 @@ import { describe, it } from "node:test";
 import assert from "node:assert";
 import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 import { Transaction } from "@mysten/sui/transactions";
-import { getKey } from "../src/key.js";
+import {
+  getKey,
+  suiClient,
+  buildPublishTx,
+  executeTx,
+  waitTx,
+  publicKeyToU256,
+  BlockData,
+  fetchBlock,
+  saveToWalrus,
+  readFromWalrus,
+} from "@dex-example/lib";
 import { writeFile } from "node:fs/promises";
-import { suiClient } from "../src/sui-client.js";
-import { buildPublishTx } from "../src/publish.js";
 import { buildMovePackage } from "../src/build.js";
-import { executeTx, waitTx } from "../src/execute.js";
-import { TokenId } from "o1js";
-import { publicKeyToU256 } from "../src/public-key.js";
 import { createInitialState, DexObjects } from "./helpers/dex.js";
 import { updateConfig } from "../src/config.js";
-import { deployMinaContract } from "../src/deploy.js";
-import { BlockData } from "../src/types.js";
-import { fetchBlock } from "../src/fetch.js";
-import { DEXMap } from "../src/contracts/provable-types.js";
+import {
+  deployMinaContract,
+  DEXMap,
+  ProvableBlockData,
+} from "@dex-example/contracts";
+import { TokenId } from "o1js";
 import { serializeIndexedMap, sleep } from "@silvana-one/storage";
-import { saveToWalrus, readFromWalrus } from "../src/walrus.js";
 
 const userSecretKeys: string[] = [
   process.env.SECRET_KEY_1!,
@@ -295,11 +302,14 @@ describe("Deploy DEX contracts", async () => {
 
     const blockData = await fetchBlock({ blockNumber: 0 });
     const map = new DEXMap();
-    blockData.map = serializeIndexedMap(map);
+    const provableBlockData: ProvableBlockData = {
+      ...blockData,
+      map: serializeIndexedMap(map),
+    };
 
     blockBlobId = await saveToWalrus({
       data: JSON.stringify(
-        blockData,
+        provableBlockData,
         (_, value) =>
           typeof value === "bigint" ? value.toString() + "n" : value,
         2
