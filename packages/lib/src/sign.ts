@@ -28,10 +28,10 @@ export function prepareSignPayload(params: {
   const receiverPublicKeyFields =
     convertMinaPublicKeyToFields(receiverPublicKey);
   const minaData: bigint[] = [
-    DEX_SIGNATURE_CONTEXT,
+    BigInt(DEX_SIGNATURE_CONTEXT),
     ...poolPublicKeyFields,
     BigInt(operation),
-    nonce,
+    BigInt(nonce),
   ];
   if (baseTokenAmount !== undefined) minaData.push(baseTokenAmount);
   if (quoteTokenAmount !== undefined) minaData.push(quoteTokenAmount);
@@ -56,23 +56,23 @@ export async function signDexFields(params: {
   minaData: bigint[];
 }> {
   const minaData = prepareSignPayload(params);
-  const minaSignatureBase58 = signFields({
+  const signedData = signFields({
     privateKey: params.minaPrivateKey,
     fields: minaData,
   });
-  const minaSignature = convertMinaSignature(minaSignatureBase58);
+  const minaSignature = convertMinaSignature(signedData.signature);
 
   const valid = verifyFields({
-    publicKey: params.poolPublicKey,
+    publicKey: signedData.publicKey,
     fields: minaData,
-    signature: minaSignatureBase58,
+    signature: signedData.signature,
   });
   if (!valid) {
     throw new Error("signDexFields: Invalid mina signature");
   }
 
   return {
-    minaSignatureBase58,
+    minaSignatureBase58: signedData.signature,
     minaSignature,
     minaData,
   };
