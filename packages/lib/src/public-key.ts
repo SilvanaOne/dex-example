@@ -33,13 +33,14 @@ export function convertMinaPublicKeyToFields(publicKey?: string): bigint[] {
   return [x, isOdd ? 1n : 0n];
 }
 
-export function signFields(params: {
-  privateKey: string;
-  fields: bigint[];
-}): string {
+export function signFields(params: { privateKey: string; fields: bigint[] }): {
+  signature: string;
+  data: bigint[];
+  publicKey: string;
+} {
   const { privateKey, fields } = params;
-  const signedData = client.signFields(fields, privateKey);
-  return signedData.signature;
+  const signedData = client.signFields(fields.map(BigInt), privateKey);
+  return signedData;
 }
 
 export function verifyFields(params: {

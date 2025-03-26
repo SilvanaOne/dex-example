@@ -30,7 +30,7 @@ export async function faucet(
 ): Promise<Partial<LastTransactionData>> {
   const start = Date.now();
   const config = await getConfig();
-  const u256 = await publicKeyToU256(user);
+  const u256 = publicKeyToU256(user);
   const u256String = u256.toString();
   const packageID = config.dex_package;
   const poolPublicKey = config.mina_contract;
