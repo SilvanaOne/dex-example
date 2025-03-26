@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { getConfig, updateConfig, DexConfig, getKey } from "@dex-example/lib";
-import { createConfig } from "../src/config.js";
+import { getConfig, DexConfig, getKey } from "@dex-example/lib";
+import { createConfig, updateConfig } from "../src/config.js";
 
 const readOnly = false;
 
