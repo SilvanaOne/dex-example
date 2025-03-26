@@ -23,6 +23,7 @@ export default function LastTransaction({ txData }: LastTransactionProps) {
   }
   const isLastTransactionData = (txData as any).digest !== undefined;
   const data = txData as LastTransactionData;
+  console.log("data", data);
 
   return (
     <div className="h-full p-1 overflow-hidden flex flex-col">
