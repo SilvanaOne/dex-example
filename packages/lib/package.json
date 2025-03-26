@@ -5,8 +5,12 @@
   "author": "DFST",
   "bugs": "https://github.com/SilvanaOne/dex-example/issues",
   "dependencies": {
+    "@mysten/sui": "^1.25.0",
     "ioredis": "^5.6.0",
-    "nanoid": "^5.1.5"
+    "js-sha256": "^0.11.0",
+    "mina-signer": "^3.0.7",
+    "nanoid": "^5.1.5",
+    "secp256k1": "^5.0.1"
   },
   "devDependencies": {
     "@types/node": "^22.13.8",
@@ -54,7 +58,8 @@
     "test": "NODE_NO_WARNINGS=1 node --loader=ts-node/esm --enable-source-maps -r dotenv/config --require dotenv/config --env-file=.env --test",
     "localnet": "RUST_LOG=off,sui_node=info sui start --with-faucet --force-regenesis",
     "template": "npm run test test/template.test.ts",
-    "price": "npm run test test/price.test.ts"
+    "price": "npm run test test/price.test.ts",
+    "signature": "npm run test test/signature.test.ts"
   },
   "type": "module",
   "types": "./dist/node/index.d.ts"

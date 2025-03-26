@@ -43,9 +43,8 @@ export async function settleMinaContract(params: {
   poolPublicKey: string;
   adminPrivateKey: string;
   proof: DEXProof;
-  blockID: string;
 }): Promise<string> {
-  const { proof, blockID } = params;
+  const { proof } = params;
   console.time("settle");
   await getProverSecretKey();
   await initBlockchain(chain);
@@ -151,7 +150,6 @@ export async function settleMinaContract(params: {
   await submitMinaTx({
     blockNumber,
     minaTx: hash,
-    blockID,
   });
   return hash;
 }

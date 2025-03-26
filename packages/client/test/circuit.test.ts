@@ -33,6 +33,7 @@ describe("Store circuit", async () => {
     const circuit = await readFile("./src/contracts/rollup.ts", "utf-8");
     blobId = await saveToWalrus({
       data: circuit,
+      numEpochs: 100,
     });
     assert.ok(blobId, "blobId is not set");
   });

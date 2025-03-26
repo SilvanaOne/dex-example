@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { shortenString } from "@/lib/dex/ui/short";
+import { shortenString } from "@/lib/short";
 import type {
   LastTransactionData,
   LastTransactionErrors,
   TransactionProof,
   TransactionError,
-} from "@/lib/dex/ui/types";
+} from "@dex-example/lib";
 import { suiExplorerTxUrl } from "@/lib/chain";
 interface LastTransactionProps {
   txData: LastTransactionData | LastTransactionErrors | null;

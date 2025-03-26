@@ -150,10 +150,9 @@ export async function rejectProof(params: {
 export async function submitMinaTx(params: {
   blockNumber: number;
   minaTx: string;
-  blockID: string;
 }): Promise<void> {
   console.log("Submitting mina tx hash to sui contract", params);
-  const { blockNumber, minaTx, blockID } = params;
+  const { blockNumber, minaTx } = params;
   if (!packageID || !dexID) {
     throw new Error("PACKAGE_ID or DEX_ID is not set");
   }
@@ -178,8 +177,8 @@ export async function submitMinaTx(params: {
           ctx: &mut TxContext,
   */
   const proofArguments = [
-    tx.object(adminID),
-    tx.object(blockID),
+    tx.object(dexID),
+    tx.pure.u64(BigInt(blockNumber)),
     tx.pure.string(minaTx),
     tx.object(SUI_CLOCK_OBJECT_ID),
   ];

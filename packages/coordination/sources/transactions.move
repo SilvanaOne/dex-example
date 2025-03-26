@@ -52,7 +52,8 @@ const EInvalidAskPrice: vector<u8> = b"Invalid ask price";
 #[error]
 const EInvalidBidPrice: vector<u8> = b"Invalid bid price";
 #[error]
-const ECannotTransferBorrowedAmount: vector<u8> = b"Cannot transfer borrowed amount";
+const ECannotTransferBorrowedAmount: vector<u8> =
+    b"Cannot transfer borrowed amount";
 #[error]
 const EInsufficientSenderBalance: vector<u8> = b"Insufficient sender balance";
 #[error]
@@ -179,7 +180,7 @@ public struct OperationTransferEvent has copy, drop {
     details: ActionTransfer,
 }
 
-public fun create_account(
+public(package) fun create_account(
     dex: &mut DEX,
     publicKey: u256,
     publicKeyBase58: String,
@@ -191,13 +192,28 @@ public fun create_account(
     ctx: &mut TxContext,
 ): address {
     dex.not_paused();
-    let user_address = create_user(publicKey, publicKeyBase58, name, role, image, ctx);
+    dex.only_admin(ctx);
+    let user_address = create_user(
+        publicKey,
+        publicKeyBase58,
+        name,
+        role,
+        image,
+        ctx,
+    );
 
     let account = create_user_trading_account(baseBalance, quoteBalance);
     insert_account_to_pool(dex, publicKey, account);
     let operation = OPERATION_CREATE_ACCOUNT;
 
-    let (_, sequence, block_number, actions_state, pool_name, pool_public_key) = get_dex_state(dex);
+    let (
+        _,
+        sequence,
+        block_number,
+        actions_state,
+        pool_name,
+        pool_public_key,
+    ) = get_dex_state(dex);
 
     let operationData = create_operation_data(OperationDataInput {
         pool: pool_name,
@@ -248,7 +264,10 @@ public fun bid(
     dex.not_paused();
 
     assert!(price > 0 || baseTokenAmount == 0, EInvalidPrice);
-    let quoteAmount = ((baseTokenAmount as u128) * (price as u128) / 1_000_000_000u128) as u64;
+    let quoteAmount =
+        (
+            (baseTokenAmount as u128) * (price as u128) / 1_000_000_000u128,
+        ) as u64;
     let userSignature = create_mina_signature(userSignature_r, userSignature_s);
     let (
         dex_public_key,
@@ -405,7 +424,9 @@ public fun trade(
     let buyerNonce;
     {
         let buyerAccount = dex.get_pool_account(buyerPublicKey);
-        let (base_balance, quote_balance, nonce) = get_account_data(buyerAccount);
+        let (base_balance, quote_balance, nonce) = get_account_data(
+            buyerAccount,
+        );
         let (bid_amount, bid_price, bid_is_some) = buyerAccount.get_bid();
         assert!(bid_is_some, EInvalidBid);
         assert!(bid_amount >= baseTokenAmount, EInsufficientBid);
@@ -432,7 +453,9 @@ public fun trade(
     let sellerNonce;
     {
         let sellerAccount = dex.get_pool_account(sellerPublicKey);
-        let (base_balance, quote_balance, nonce) = get_account_data(sellerAccount);
+        let (base_balance, quote_balance, nonce) = get_account_data(
+            sellerAccount,
+        );
         let (ask_amount, ask_price, ask_is_some) = sellerAccount.get_ask();
         assert!(ask_is_some, EInvalidAsk);
         assert!(ask_amount >= baseTokenAmount, EInsufficientAsk);
@@ -456,7 +479,14 @@ public fun trade(
 
     let operation = OPERATION_TRADE;
 
-    let (_, sequence, block_number, actions_state, pool_name, pool_public_key) = get_dex_state(dex);
+    let (
+        _,
+        sequence,
+        block_number,
+        actions_state,
+        pool_name,
+        pool_public_key,
+    ) = get_dex_state(dex);
 
     let operationData = create_operation_data(OperationDataInput {
         pool: pool_name,
@@ -475,7 +505,9 @@ public fun trade(
     });
     let operation = create_operation(&operationData);
     dex.update_actions_state(operation.actionState);
-    let price = ((quoteTokenAmount as u128) * 1_000_000_000u128 / (baseTokenAmount as u128) as u64);
+    let price = (
+        (quoteTokenAmount as u128) * 1_000_000_000u128 / (baseTokenAmount as u128) as u64,
+    );
     dex.update_pool_last_price(price);
     event::emit(OperationTradeEvent {
         operation,
@@ -505,11 +537,16 @@ public fun transfer(
     not_paused(dex);
     assert!(baseTokenAmount > 0 || quoteTokenAmount > 0, EInvalidAmount);
     let operation = OPERATION_TRANSFER;
-    let senderSignature = create_mina_signature(senderSignature_r, senderSignature_s);
+    let senderSignature = create_mina_signature(
+        senderSignature_r,
+        senderSignature_s,
+    );
     let senderNonce;
     {
         let senderAccount = dex.get_pool_account(senderPublicKey);
-        let (base_balance, quote_balance, nonce) = get_account_data(senderAccount);
+        let (base_balance, quote_balance, nonce) = get_account_data(
+            senderAccount,
+        );
         assert!(base_balance >= baseTokenAmount, EInsufficientSenderBalance);
         assert!(quote_balance >= quoteTokenAmount, EInsufficientSenderBalance);
         assert!(senderAccount.can_transfer(), ECannotTransferBorrowedAmount);
@@ -526,7 +563,9 @@ public fun transfer(
 
     {
         let receiverAccount = dex.get_pool_account(receiverPublicKey);
-        let (base_balance, quote_balance, _) = get_account_data(receiverAccount);
+        let (base_balance, quote_balance, _) = get_account_data(
+            receiverAccount,
+        );
         receiverAccount.update_base_balance(
             create_mina_balance(base_balance + baseTokenAmount, 0, 0),
         );
@@ -611,19 +650,31 @@ fun create_operation_data(data: OperationDataInput): OperationData {
     vector::append(&mut msg, std::bcs::to_bytes(&data.nonce));
 
     if (data.baseTokenAmount.is_some()) {
-        vector::append(&mut msg, std::bcs::to_bytes(data.baseTokenAmount.borrow()));
+        vector::append(
+            &mut msg,
+            std::bcs::to_bytes(data.baseTokenAmount.borrow()),
+        );
     };
     if (data.quoteTokenAmount.is_some()) {
-        vector::append(&mut msg, std::bcs::to_bytes(data.quoteTokenAmount.borrow()));
+        vector::append(
+            &mut msg,
+            std::bcs::to_bytes(data.quoteTokenAmount.borrow()),
+        );
     };
     if (data.price.is_some()) {
         vector::append(&mut msg, std::bcs::to_bytes(data.price.borrow()));
     };
     if (data.receiverPublicKey.is_some()) {
-        vector::append(&mut msg, std::bcs::to_bytes(data.receiverPublicKey.borrow()));
+        vector::append(
+            &mut msg,
+            std::bcs::to_bytes(data.receiverPublicKey.borrow()),
+        );
     };
     if (data.receiverNonce.is_some()) {
-        vector::append(&mut msg, std::bcs::to_bytes(data.receiverNonce.borrow()));
+        vector::append(
+            &mut msg,
+            std::bcs::to_bytes(data.receiverNonce.borrow()),
+        );
     };
     let mut actionsStateData = vector::empty<u8>();
     vector::append(&mut actionsStateData, data.actionsState);

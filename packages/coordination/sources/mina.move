@@ -24,6 +24,14 @@ public struct MinaBalance has copy, drop, store {
     borrowedAmount: u64,
 }
 
+const MAX_BIT: u256 = 1u256 << 255;
+
+public fun convert_mina_public_key(public_key: u256): (u256, bool) {
+    let is_odd = (public_key & MAX_BIT) != 0;
+    let x = public_key - (if (is_odd) { MAX_BIT } else { 0 });
+    (x, is_odd)
+}
+
 public(package) fun create_mina_balance(
     amount: u64,
     stakedAmount: u64,

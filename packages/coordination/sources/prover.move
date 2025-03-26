@@ -2,7 +2,9 @@ module dex::prover;
 
 use std::string::String;
 use sui::clock::Clock;
+use sui::display;
 use sui::event;
+use sui::package;
 use sui::vec_map::{VecMap, contains, insert, get_mut, empty};
 
 #[allow(unused_field)]
@@ -74,6 +76,36 @@ public struct ProofCalculationCreatedEvent has copy, drop {
     end_sequence: Option<u64>,
     circuit: address,
     timestamp: u64,
+}
+
+public struct PROVER has drop {}
+
+fun init(otw: PROVER, ctx: &mut TxContext) {
+    let publisher = package::claim(otw, ctx);
+
+    let keys = vector[
+        b"name".to_string(),
+        b"description".to_string(),
+        b"project_url".to_string(),
+        b"creator".to_string(),
+    ];
+
+    let values = vector[
+        b"Block {block_number} proofs".to_string(),
+        b"Silvana DEX Proofs for block {block_number}".to_string(),
+        b"https://dex.silvana.dev".to_string(),
+        b"DFST".to_string(),
+    ];
+    let mut display_prover = display::new_with_fields<ProofCalculation>(
+        &publisher,
+        keys,
+        values,
+        ctx,
+    );
+
+    display_prover.update_version();
+    transfer::public_transfer(publisher, ctx.sender());
+    transfer::public_transfer(display_prover, ctx.sender());
 }
 
 public(package) fun create_circuit(

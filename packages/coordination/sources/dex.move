@@ -91,6 +91,7 @@ public struct DEX has key, store {
         u64,
         prover::ProofCalculation,
     >,
+    blocks: object_table::ObjectTable<u64, Block>,
     admin: address,
     public_key: vector<u8>,
     circuit: prover::Circuit,
@@ -266,8 +267,7 @@ public fun create_dex(
         ctx,
     );
 
-    let (block_address, block_timestamp) = create_block_internal(
-        admin,
+    let (block_address, block_timestamp, block_0) = create_block_internal(
         0u64,
         0u64,
         0u64,
@@ -280,6 +280,8 @@ public fun create_dex(
         clock,
         ctx,
     );
+    let mut blocks = object_table::new<u64, Block>(ctx);
+    blocks.add(0u64, block_0);
 
     let (proof_calculation_block_1, _) = prover::create_block_proof_calculation(
         1u64,
@@ -303,6 +305,7 @@ public fun create_dex(
         block_number: 1u64,
         actionsState: hash,
         proof_calculations,
+        blocks,
         admin: ctx.sender(),
         public_key,
         circuit,
@@ -392,17 +395,11 @@ public(package) fun update_pool_last_price(dex: &mut DEX, last_price: u64) {
 #[error]
 const ENoTransactions: vector<u8> = b"No new transactions";
 
-public fun create_block(
-    admin: &Admin,
-    dex: &mut DEX,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
+public fun create_block(dex: &mut DEX, clock: &Clock, ctx: &mut TxContext) {
     assert!(
         (dex.previous_block_last_sequence + 1) != dex.sequence,
         ENoTransactions,
     );
-    dex.only_admin(ctx);
     let mut block_number = dex.block_number;
     let start_sequence = dex.previous_block_last_sequence + 1;
     let end_sequence = dex.sequence - 1;
@@ -421,8 +418,7 @@ public fun create_block(
         };
     };
 
-    let (address, timestamp) = create_block_internal(
-        admin,
+    let (address, timestamp, block) = create_block_internal(
         block_number,
         start_sequence,
         end_sequence,
@@ -436,6 +432,11 @@ public fun create_block(
         option::some(dex.previous_block_timestamp),
         clock,
         ctx,
+    );
+    object_table::add(
+        &mut dex.blocks,
+        block_number,
+        block,
     );
     block_number = block_number + 1;
     let (new_proof_calculation, _) = prover::create_block_proof_calculation(
@@ -525,7 +526,6 @@ public fun reject_proof(
 
 #[allow(lint(self_transfer))]
 public(package) fun create_block_internal(
-    admin: &Admin,
     block_number: u64,
     start_sequence: u64,
     end_sequence: u64,
@@ -537,8 +537,7 @@ public(package) fun create_block_internal(
     previous_block_timestamp: Option<u64>,
     clock: &Clock,
     ctx: &mut TxContext,
-): (address, u64) {
-    assert!(get_admin_address(admin) == ctx.sender(), ENotAuthorized);
+): (address, u64, Block) {
     let timestamp = clock.timestamp_ms();
     let mut name: String = b"Silvana DEX Block ".to_string();
     name.append(block_number.to_string());
@@ -602,19 +601,22 @@ public(package) fun create_block_internal(
         end_action_state: actions_state,
         proof_calculation: proof_calculation_address,
     });
-    transfer::transfer(block, ctx.sender());
-    (block_address, timestamp)
+    (block_address, timestamp, block)
 }
 
 public fun update_block_state_data_availability(
-    admin: &Admin,
-    block: &mut Block,
+    dex: &mut DEX,
+    block_number: u64,
     state_data_availability: String,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
-    assert!(get_admin_address(admin) == ctx.sender(), ENotAuthorized);
+    only_admin(dex, ctx);
     let timestamp = clock.timestamp_ms();
+    let block = object_table::borrow_mut(
+        &mut dex.blocks,
+        block_number,
+    );
     block.state_data_availability = option::some(state_data_availability);
     block.state_calculated_at = option::some(timestamp);
     event::emit(DataAvailabilityEvent {
@@ -627,14 +629,18 @@ public fun update_block_state_data_availability(
 }
 
 public fun update_block_proof_data_availability(
-    admin: &Admin,
-    block: &mut Block,
+    dex: &mut DEX,
+    block_number: u64,
     proof_data_availability: String,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
-    assert!(get_admin_address(admin) == ctx.sender(), ENotAuthorized);
+    only_admin(dex, ctx);
     let timestamp = clock.timestamp_ms();
+    let block = object_table::borrow_mut(
+        &mut dex.blocks,
+        block_number,
+    );
     block.proof_data_availability = option::some(proof_data_availability);
     block.proved_at = option::some(timestamp);
     event::emit(DataAvailabilityEvent {
@@ -647,14 +653,18 @@ public fun update_block_proof_data_availability(
 }
 
 public fun update_block_mina_tx_hash(
-    admin: &Admin,
-    block: &mut Block,
+    dex: &mut DEX,
+    block_number: u64,
     mina_tx_hash: String,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
-    assert!(get_admin_address(admin) == ctx.sender(), ENotAuthorized);
+    only_admin(dex, ctx);
     let timestamp = clock.timestamp_ms();
+    let block = object_table::borrow_mut(
+        &mut dex.blocks,
+        block_number,
+    );
     block.mina_tx_hash = option::some(mina_tx_hash);
     block.sent_to_mina_at = option::some(timestamp);
     event::emit(MinaTransactionEvent {
@@ -667,13 +677,17 @@ public fun update_block_mina_tx_hash(
 }
 
 public fun update_block_mina_tx_included_in_block(
-    admin: &Admin,
-    block: &mut Block,
+    dex: &mut DEX,
+    block_number: u64,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
-    assert!(get_admin_address(admin) == ctx.sender(), ENotAuthorized);
+    only_admin(dex, ctx);
     let timestamp = clock.timestamp_ms();
+    let block = object_table::borrow_mut(
+        &mut dex.blocks,
+        block_number,
+    );
     block.mina_tx_included_in_block = true;
     block.settled_on_mina_at = option::some(timestamp);
     event::emit(MinaTransactionEvent {

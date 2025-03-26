@@ -3,7 +3,7 @@ import type {
   LastTransactionData,
   TransactionProof,
   TransactionError,
-} from "@/lib/dex/ui/types";
+} from "@dex-example/lib";
 
 // Simulate fetching account data
 export const mockTransactions: PendingTransactions = {

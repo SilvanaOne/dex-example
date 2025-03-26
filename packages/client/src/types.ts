@@ -418,7 +418,6 @@ export function convertRawOperationEvent(
 
 export interface BlockData {
   block: Block;
-  blockID: string;
   events: OperationEvent[];
   map?: IndexedMapSerialized;
 }

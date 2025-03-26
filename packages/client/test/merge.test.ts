@@ -37,6 +37,9 @@ describe("Merge proofs", async () => {
     }[] = [];
     while (true) {
       const dex = await fetchDex();
+      if (!dex) {
+        throw new Error("DEX data not found");
+      }
       const last_proved_block_number = Number(dex.last_proved_block_number);
       const current_block_number = Number(dex.block_number);
       if (
