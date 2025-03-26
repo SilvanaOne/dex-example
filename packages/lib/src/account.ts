@@ -4,7 +4,7 @@ import { publicKeyToU256 } from "./public-key.js";
 import { Transaction } from "@mysten/sui/transactions";
 import { getKey } from "./key.js";
 import { suiClient } from "./sui-client.js";
-import { executeTx } from "./execute.js";
+import { executeOperationTx } from "./operaton.js";
 import { LastTransactionData } from "./types.js";
 const adminSecretKey: string = process.env.ADMIN_SECRET_KEY!;
 const validatorSecretKey: string = process.env.VALIDATOR_SECRET_KEY!;
@@ -71,7 +71,7 @@ export async function createAccount(
 
   const end = Date.now();
   const prepareTime = end - start;
-  const result = await executeTx(signedTx);
+  const result = await executeOperationTx(signedTx);
   console.log("Created user:", result);
   return { ...result, prepareTime };
 }

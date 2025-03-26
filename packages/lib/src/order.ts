@@ -4,7 +4,7 @@ import { publicKeyToU256 } from "./public-key.js";
 import { Transaction } from "@mysten/sui/transactions";
 import { getKey, getUserKey } from "./key.js";
 import { suiClient } from "./sui-client.js";
-import { executeTx } from "./execute.js";
+import { executeOperationTx } from "./operaton.js";
 import { fetchDexAccount } from "./fetch.js";
 import { Operation } from "./types.js";
 import { prepareSignPayload } from "./sign.js";
@@ -288,7 +288,7 @@ export async function order(params: {
 
   const end = Date.now();
   const prepareTime = end - start;
-  const result = await executeTx(signedTx);
+  const result = await executeOperationTx(signedTx);
   console.log("tx result:", result);
 
   return { ...result, prepareTime };

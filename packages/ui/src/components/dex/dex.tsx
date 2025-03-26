@@ -289,7 +289,7 @@ export default function DEX() {
       setAccount(account);
     } else {
       log.info("createAccount: no account, creating account", {
-        addressU256: u256,
+        addressU256: u256.toString(),
         address,
       });
       console.log("creating account", u256, address);
