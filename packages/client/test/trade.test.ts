@@ -2,17 +2,21 @@ import { describe, it } from "node:test";
 import assert from "node:assert";
 
 import { Transaction } from "@mysten/sui/transactions";
-import { getKey } from "../src/key.js";
 import { readFile } from "node:fs/promises";
-import { suiClient } from "../src/sui-client.js";
-import { executeTx, waitTx } from "../src/execute.js";
-import { publicKeyToU256 } from "../src/public-key.js";
+import {
+  suiClient,
+  executeTx,
+  waitTx,
+  getKey,
+  signDexFields,
+  wrapMinaSignature,
+  publicKeyToU256,
+  Operation,
+  User,
+  UserTradingAccount,
+  fetchDexAccount,
+} from "@dex-example/lib";
 import { DexObjects } from "./helpers/dex.js";
-import { signDexFields } from "../src/sign.js";
-import { Operation, User, UserTradingAccount } from "../src/types.js";
-import { fetchDexAccount } from "../src/fetch.js";
-import { wrapMinaSignature } from "../src/wrap.js";
-import { sleep } from "../src/sleep.js";
 const wait: boolean = false as boolean;
 
 const aliceSecretKey: string = process.env.SECRET_KEY_1!;
@@ -109,7 +113,9 @@ describe("Trade", async () => {
         name: trader.name,
       });
 
-      const traderAccount = await fetchDexAccount(trader.user.minaPublicKey);
+      const traderAccount = await fetchDexAccount({
+        addressU256: publicKeyToU256(trader.user.minaPublicKey),
+      });
       if (!traderAccount) {
         throw new Error(`Cannot fetch ${trader.name} account`);
       }
@@ -132,7 +138,7 @@ describe("Trade", async () => {
         });
         console.time("bid state");
         const { minaSignature, suiSignature } = await wrapMinaSignature({
-          minaSignature: bidSignatures.minaSignature,
+          minaSignatureBase58: bidSignatures.minaSignatureBase58,
           minaPublicKey: trader.user.minaPublicKey,
           poolPublicKey: pool.minaPublicKey,
           operation: Operation.BID,
@@ -192,7 +198,9 @@ describe("Trade", async () => {
             console.log(`Errors for tx ${digest}:`, waitResult.errors);
           }
           assert.ok(!waitResult.errors, "bid transaction failed");
-          const newAccount = await fetchDexAccount(trader.user.minaPublicKey);
+          const newAccount = await fetchDexAccount({
+            addressU256: publicKeyToU256(trader.user.minaPublicKey),
+          });
           if (!newAccount) {
             throw new Error("Cannot fetch accounts");
           }
@@ -215,7 +223,7 @@ describe("Trade", async () => {
         console.time("ask state");
         console.time("ask signature");
         const { minaSignature, suiSignature } = await wrapMinaSignature({
-          minaSignature: askSignatures.minaSignature,
+          minaSignatureBase58: askSignatures.minaSignatureBase58,
           minaPublicKey: trader.user.minaPublicKey,
           poolPublicKey: pool.minaPublicKey,
           operation: Operation.ASK,
@@ -265,7 +273,9 @@ describe("Trade", async () => {
           }
           assert.ok(!waitResult.errors, "ask transaction failed");
 
-          const newAccount = await fetchDexAccount(trader.user.minaPublicKey);
+          const newAccount = await fetchDexAccount({
+            addressU256: publicKeyToU256(trader.user.minaPublicKey),
+          });
           if (!newAccount) {
             throw new Error("Cannot fetch accounts");
           }
@@ -338,13 +348,17 @@ describe("Trade", async () => {
     }
     assert.ok(!waitResult.errors, "trade transaction failed");
 
-    const newAliceAccount = await fetchDexAccount(alice.minaPublicKey);
+    const newAliceAccount = await fetchDexAccount({
+      addressU256: publicKeyToU256(alice.minaPublicKey),
+    });
     if (!newAliceAccount) {
       throw new Error("Cannot fetch accounts");
     }
     //console.log(`Alice account after trade:`, newAliceAccount);
 
-    const newBobAccount = await fetchDexAccount(bob.minaPublicKey);
+    const newBobAccount = await fetchDexAccount({
+      addressU256: publicKeyToU256(bob.minaPublicKey),
+    });
     if (!newBobAccount) {
       throw new Error("Cannot fetch accounts");
     }

@@ -1,14 +1,18 @@
 import { Transaction } from "@mysten/sui/transactions";
-import { getKey } from "../src/key.js";
+import {
+  getKey,
+  buildPublishTx,
+  executeTx,
+  waitTx,
+  suiClient,
+  fetchSuiObject,
+} from "@dex-example/lib";
 import { writeFile } from "node:fs/promises";
-import { buildPublishTx } from "../src/publish.js";
-import { buildMovePackage } from "../src/build.js";
-import { executeTx, waitTx } from "../src/execute.js";
-import { suiClient } from "./sui-client.js";
-import { fetchSuiObject } from "./fetch.js";
+import { buildMovePackage } from "./build.js";
 import dotenv from "dotenv";
 
-export interface Config {
+export interface DexConfig {
+  admin: string;
   dex_package: string;
   dex_object: string;
   circuit_blob_id: string;
@@ -17,24 +21,27 @@ export interface Config {
   mina_contract: string;
 }
 
-export async function getConfig(): Promise<Config | undefined> {
-  const suiChain = process.env.SUI_CHAIN || "localnet";
-  const configPath = `.env.${suiChain}.config`;
-  dotenv.config({ path: configPath });
-  const configID = process.env.CONFIG_ID;
+let dexConfig: DexConfig | undefined;
+
+export async function getConfig(configID?: string): Promise<DexConfig> {
+  if (dexConfig) return dexConfig;
+  if (!configID) {
+    configID = process.env.NEXT_PUBLIC_CONFIG_ID ?? process.env.CONFIG_ID;
+  }
   if (!configID) {
     throw new Error("CONFIG_ID is not set");
   }
-  const config = ((await fetchSuiObject(configID))?.data?.content as any)
-    ?.fields;
-  if (!config) {
-    return undefined;
+  const fetchResult = await fetchSuiObject(configID);
+  //console.log("fetchResult", fetchResult);
+  dexConfig = (fetchResult.data?.content as any)
+    ?.fields as unknown as DexConfig;
+  if (!dexConfig) {
+    throw new Error("Config object not found");
   }
-  console.log(config);
-  return config as unknown as Config;
+  return dexConfig;
 }
 
-export async function updateConfig(config: Partial<Config>): Promise<void> {
+export async function updateConfig(config: Partial<DexConfig>): Promise<void> {
   console.log("Updating config", config);
   const suiChain = process.env.SUI_CHAIN || "localnet";
   const configPath = `.env.${suiChain}.config`;
@@ -47,10 +54,21 @@ export async function updateConfig(config: Partial<Config>): Promise<void> {
   if (!configPackageID) {
     throw new Error("CONFIG_PACKAGE_ID is not set");
   }
+  const adminSecretKey: string = process.env.ADMIN_SECRET_KEY!;
+  if (!adminSecretKey) {
+    throw new Error("ADMIN_SECRET_KEY is not set");
+  }
+
+  const { address, keypair } = await getKey({
+    secretKey: adminSecretKey,
+    name: "admin",
+  });
+
   let configObject = await getConfig();
   if (!configObject) {
     //throw new Error("Config object not found");
     configObject = {
+      admin: address,
       dex_package: process.env.PACKAGE_ID || "",
       dex_object: process.env.DEX_ID || "",
       circuit_blob_id: process.env.CIRCUIT_BLOB_ID || "",
@@ -66,15 +84,6 @@ export async function updateConfig(config: Partial<Config>): Promise<void> {
   };
   console.log("Updated config", updatedConfig);
   // Build transaction to update the config
-  const adminSecretKey: string = process.env.ADMIN_SECRET_KEY!;
-  if (!adminSecretKey) {
-    throw new Error("ADMIN_SECRET_KEY is not set");
-  }
-
-  const { address, keypair } = await getKey({
-    secretKey: adminSecretKey,
-    name: "admin",
-  });
 
   /*
       public fun update_config(
@@ -120,7 +129,7 @@ export async function updateConfig(config: Partial<Config>): Promise<void> {
   console.log("Config updated successfully:", digest);
 }
 
-export async function createConfig(config: Config): Promise<{
+export async function createConfig(config: DexConfig): Promise<{
   configPackageID: string;
   adminID: string;
   configID: string;

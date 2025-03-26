@@ -6,12 +6,10 @@ import { DexObjects } from "./helpers/dex.js";
 import {
   fetchDexAccount,
   fetchProofStatus,
-  fetchSequenceData,
   fetchSuiObject,
-} from "../src/fetch.js";
-import { submitProof } from "../src/proof.js";
-import { SequenceState } from "../src/contracts/rollup.js";
-import { toASCII } from "node:punycode";
+} from "@dex-example/lib";
+import { fetchSequenceData, submitProof } from "@dex-example/contracts";
+import { SequenceState } from "@dex-example/contracts";
 let dexObjects: DexObjects | undefined = undefined;
 let sequenceState: SequenceState | undefined = undefined;
 const blockNumber = 1;

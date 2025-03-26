@@ -180,7 +180,7 @@ public struct OperationTransferEvent has copy, drop {
     details: ActionTransfer,
 }
 
-public(package) fun create_account(
+public fun create_account(
     dex: &mut DEX,
     publicKey: u256,
     publicKeyBase58: String,

@@ -1,8 +1,6 @@
-import { OperationNames, SequenceData } from "./types.js";
-import { fetchSequenceData } from "./fetch.js";
+import { OperationNames } from "@dex-example/lib";
 import { deserializeIndexedMerkleMap } from "@silvana-one/storage";
-import { DEXMap } from "./contracts/provable-types.js";
-import { DEXProgram } from "./contracts/rollup.js";
+import { DEXMap, SequenceData } from "./types/provable-types.js";
 
 export async function proveSequence(params: { sequenceData: SequenceData }) {
   const { sequenceData } = params;

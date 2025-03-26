@@ -1,11 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
 import { Transaction } from "@mysten/sui/transactions";
-import { getKey } from "../src/key.js";
+import { getKey } from "@dex-example/lib";
 import { readFile } from "node:fs/promises";
-import { suiClient } from "../src/sui-client.js";
-import { executeTx, waitTx } from "../src/execute.js";
-import { publicKeyToU256 } from "../src/public-key.js";
+import { suiClient } from "@dex-example/lib";
+import { executeTx, waitTx } from "@dex-example/lib";
+import { publicKeyToU256 } from "@dex-example/lib";
 import { DexObjects } from "./helpers/dex.js";
 
 const userSecretKeys: string[] = [

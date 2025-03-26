@@ -4,7 +4,7 @@ import { publicKeyToU256 } from "./public-key.js";
 import { Transaction } from "@mysten/sui/transactions";
 import { getKey } from "./key.js";
 import { suiClient } from "./sui-client.js";
-import { executeTx, waitTx } from "./execute.js";
+import { executeTx } from "./execute.js";
 import { LastTransactionData } from "./types.js";
 const adminSecretKey: string = process.env.ADMIN_SECRET_KEY!;
 const validatorSecretKey: string = process.env.VALIDATOR_SECRET_KEY!;
@@ -18,7 +18,7 @@ export async function createAccount(
 ): Promise<Partial<LastTransactionData>> {
   const start = Date.now();
   const config = await getConfig();
-  const u256 = await publicKeyToU256(user);
+  const u256 = publicKeyToU256(user);
   const u256String = u256.toString();
   const packageID = config.dex_package;
   const dexID = config.dex_object;

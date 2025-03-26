@@ -19,8 +19,8 @@ import {
   AccountUpdate,
   JsonProof,
 } from "o1js";
-import { DEXProgram, DEXProof } from "../src/contracts/rollup.js";
-import { DEXContract } from "../src/contracts/contract.js";
+import { DEXProgram, DEXProof } from "@dex-example/contracts";
+import { DEXContract } from "@dex-example/contracts";
 import {
   Operation,
   ActionCreateAccount,
@@ -28,7 +28,7 @@ import {
   ActionBid,
   ActionTransfer,
   ActionTrade,
-} from "../src/types.js";
+} from "@dex-example/lib";
 import {
   RollupActionCreateAccount,
   RollupActionAsk,
@@ -40,7 +40,7 @@ import {
   RollupUserTradingAccount,
   RollupOrder,
   RollupMinaBalance,
-} from "../src/contracts/provable-types.js";
+} from "@dex-example/contracts";
 import {
   fetchMinaAccount,
   initBlockchain,
@@ -49,7 +49,7 @@ import {
   sendTx,
   pinJSON,
 } from "@silvana-one/mina-utils";
-import { signDexFields } from "../src/sign.js";
+import { signDexFields } from "@dex-example/lib";
 import { TEST_ACCOUNTS } from "./helpers/config.js";
 
 const { TestPublicKey } = Mina;

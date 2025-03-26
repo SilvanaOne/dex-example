@@ -41,8 +41,7 @@ export async function prepareOrderPayload(params: {
   }
   const { user, type, currency } = params;
   const config = await getConfig();
-  const u256 = await publicKeyToU256(user);
-  const u256String = u256.toString();
+  const u256 = publicKeyToU256(user);
   const packageID = config.dex_package;
   const dexID = config.dex_object;
   const poolPublicKey = config.mina_contract;
@@ -59,7 +58,7 @@ export async function prepareOrderPayload(params: {
     throw new Error("DEX_ID is not set");
   }
 
-  const userAccount = await fetchDexAccount({ addressU256: u256String });
+  const userAccount = await fetchDexAccount({ addressU256: u256 });
   if (!userAccount) {
     throw new Error("Cannot fetch accounts");
   }
@@ -151,8 +150,7 @@ export async function order(params: {
     keyPromise = getUserKey();
   }
   const u256 = publicKeyToU256(user);
-  const u256String = u256.toString();
-  const userAccountPromise = fetchDexAccount({ addressU256: u256String });
+  const userAccountPromise = fetchDexAccount({ addressU256: u256 });
   const config = await getConfig();
   const poolPublicKey = config.mina_contract;
 

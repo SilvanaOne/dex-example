@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
 
-import { saveToWalrus, readFromWalrus } from "../src/walrus.js";
+import { saveToWalrus, readFromWalrus } from "@dex-example/lib";
 let blobId: string | undefined = undefined;
 
 describe("Walrus", async () => {

@@ -31,7 +31,6 @@ public struct Block has key, store {
     start_sequence: u64,
     end_sequence: u64,
     block_state: BlockState,
-    block_state_address: address,
     time_since_last_block: u64,
     number_of_transactions: u64,
     start_action_state: vector<u8>,
@@ -40,8 +39,6 @@ public struct Block has key, store {
     proof_data_availability: Option<String>,
     mina_tx_hash: Option<String>,
     mina_tx_included_in_block: bool,
-    previous_block_address: Option<address>,
-    proof_calculation_address: address,
     created_at: u64,
     state_calculated_at: Option<u64>,
     proved_at: Option<u64>,
@@ -56,13 +53,10 @@ public struct BlockEvent has copy, drop {
     start_sequence: u64,
     end_sequence: u64,
     timestamp: u64,
-    block_state: address,
-    previous_block_address: Option<address>,
     time_since_last_block: u64,
     number_of_transactions: u64,
     start_action_state: vector<u8>,
     end_action_state: vector<u8>,
-    proof_calculation: address,
 }
 
 public struct DataAvailabilityEvent has copy, drop {
@@ -101,7 +95,6 @@ public struct DEX has key, store {
     previous_block_timestamp: u64,
     previous_block_last_sequence: u64,
     previous_block_actions_state: vector<u8>,
-    previous_block_address: address,
     last_proved_block_number: u64,
     last_proved_sequence: u64,
     isPaused: bool,
@@ -255,27 +248,13 @@ public fun create_dex(
         ctx,
     );
 
-    let (
-        proof_calculation_block_0,
-        proof_calculation_block_0_address,
-    ) = prover::create_block_proof_calculation(
-        0u64,
-        circuit_address,
-        0u64,
-        option::some(0u64),
-        clock,
-        ctx,
-    );
-
-    let (block_address, block_timestamp, block_0) = create_block_internal(
+    let (block_timestamp, block_0) = create_block_internal(
         0u64,
         0u64,
         0u64,
         &pool,
         hash,
         vector<u8>[],
-        proof_calculation_block_0_address,
-        option::none(),
         option::none(),
         clock,
         ctx,
@@ -295,7 +274,6 @@ public fun create_dex(
         u64,
         prover::ProofCalculation,
     >(ctx);
-    proof_calculations.add(0u64, proof_calculation_block_0);
     proof_calculations.add(1u64, proof_calculation_block_1);
 
     let dex = DEX {
@@ -315,7 +293,6 @@ public fun create_dex(
         previous_block_timestamp: block_timestamp,
         previous_block_last_sequence: 0u64,
         previous_block_actions_state: hash,
-        previous_block_address: block_address,
         last_proved_block_number: 0u64,
         last_proved_sequence: 0u64,
         isPaused: false,
@@ -418,17 +395,13 @@ public fun create_block(dex: &mut DEX, clock: &Clock, ctx: &mut TxContext) {
         };
     };
 
-    let (address, timestamp, block) = create_block_internal(
+    let (timestamp, block) = create_block_internal(
         block_number,
         start_sequence,
         end_sequence,
         &dex.pool,
         dex.actionsState,
         dex.previous_block_actions_state,
-        prover::get_proof_calculation_address(
-            object_table::borrow(&dex.proof_calculations, block_number),
-        ),
-        option::some(dex.previous_block_address),
         option::some(dex.previous_block_timestamp),
         clock,
         ctx,
@@ -448,7 +421,6 @@ public fun create_block(dex: &mut DEX, clock: &Clock, ctx: &mut TxContext) {
         ctx,
     );
     dex.block_number = block_number;
-    dex.previous_block_address = address;
     dex.previous_block_timestamp = timestamp;
     dex.previous_block_actions_state = dex.actionsState;
     dex.previous_block_last_sequence = end_sequence;
@@ -532,12 +504,10 @@ public(package) fun create_block_internal(
     pool: &Pool,
     actions_state: vector<u8>,
     previous_block_actions_state: vector<u8>,
-    proof_calculation_address: address,
-    previous_block_address: Option<address>,
     previous_block_timestamp: Option<u64>,
     clock: &Clock,
     ctx: &mut TxContext,
-): (address, u64, Block) {
+): (u64, Block) {
     let timestamp = clock.timestamp_ms();
     let mut name: String = b"Silvana DEX Block ".to_string();
     name.append(block_number.to_string());
@@ -551,7 +521,6 @@ public(package) fun create_block_internal(
         sequence: end_sequence,
         state: pool.get_accounts(),
     };
-    let block_state_address = block_state.id.to_address();
 
     let time_since_last_block = if (previous_block_timestamp.is_some()) {
         timestamp - *previous_block_timestamp.borrow()
@@ -559,7 +528,6 @@ public(package) fun create_block_internal(
         0u64
     };
     let block_id = object::new(ctx);
-    let block_address = block_id.to_address();
 
     let block = Block {
         id: block_id,
@@ -568,7 +536,6 @@ public(package) fun create_block_internal(
         start_sequence,
         end_sequence,
         block_state,
-        block_state_address,
         time_since_last_block,
         number_of_transactions: end_sequence - start_sequence + 1,
         start_action_state: previous_block_actions_state,
@@ -577,8 +544,6 @@ public(package) fun create_block_internal(
         proof_data_availability: option::none(),
         mina_tx_hash: option::none(),
         mina_tx_included_in_block: false,
-        previous_block_address,
-        proof_calculation_address,
         created_at: timestamp,
         state_calculated_at: option::none(),
         proved_at: option::none(),
@@ -593,15 +558,12 @@ public(package) fun create_block_internal(
         end_sequence,
         name,
         timestamp,
-        block_state: block_state_address,
-        previous_block_address,
         time_since_last_block,
         number_of_transactions: end_sequence - start_sequence + 1,
         start_action_state: previous_block_actions_state,
         end_action_state: actions_state,
-        proof_calculation: proof_calculation_address,
     });
-    (block_address, timestamp, block)
+    (timestamp, block)
 }
 
 public fun update_block_state_data_availability(

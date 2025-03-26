@@ -1,5 +1,5 @@
 import { Secp256k1Keypair } from "@mysten/sui/keypairs/secp256k1";
-import { Transaction, TransactionResult } from "@mysten/sui/transactions";
+import { Transaction } from "@mysten/sui/transactions";
 import { SignatureWithBytes } from "@mysten/sui/cryptography";
 import { suiClient } from "./sui-client.js";
 

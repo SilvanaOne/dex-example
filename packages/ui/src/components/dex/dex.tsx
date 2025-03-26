@@ -64,7 +64,7 @@ export default function DEX() {
   const [networkInfo, setNetworkInfo] = useState<NetworkInfoData | undefined>(
     undefined
   );
-  const [addressU256, setAddressU256] = useState<string | undefined>(undefined);
+  const [addressU256, setAddressU256] = useState<bigint | undefined>(undefined);
   const [highlight, setHighlight] = useState<boolean>(false);
   const [user, setUser] = useState<string | undefined>(undefined);
   const [key, setKey] = useState<string | undefined>(undefined);
@@ -84,10 +84,8 @@ export default function DEX() {
       console.log("user", user);
       const config = await getConfig();
       console.log("config", config);
-      const u256 = await publicKeyToU256(user);
-      const u256String = u256.toString();
-      console.log("u256String", u256String);
-      setAddressU256(u256String);
+      const u256 = publicKeyToU256(user);
+      setAddressU256(u256);
     }
     getU256Address();
   }, [user]);
@@ -136,13 +134,10 @@ export default function DEX() {
     async function getAccount() {
       console.log("address", address);
       if (!address) return;
-      const u256 = await publicKeyToU256(address);
-      const addressU256 = u256.toString();
-      console.log("addressU256", addressU256);
-      if (!addressU256) return;
-      const account = await fetchDexAccount({ addressU256: addressU256 });
+      const u256 = publicKeyToU256(address);
+      const account = await fetchDexAccount({ addressU256: u256 });
       if (!account) return;
-      setAddressU256(addressU256);
+      setAddressU256(u256);
       setUser(address);
       setAccount(account);
       console.log("account", account);
@@ -286,23 +281,21 @@ export default function DEX() {
       return;
     }
     console.log("createAccount: address", address);
-    const u256 = await publicKeyToU256(address);
-    const u256String = u256.toString();
-    console.log("u256String", u256String);
-    const account = await fetchDexAccount({ addressU256: u256String });
+    const u256 = publicKeyToU256(address);
+    const account = await fetchDexAccount({ addressU256: u256 });
     console.log("checked account", account);
     if (account) {
-      setAddressU256(u256String);
+      setAddressU256(u256);
       setAccount(account);
     } else {
       log.info("createAccount: no account, creating account", {
-        addressU256: u256String,
+        addressU256: u256,
         address,
       });
-      console.log("creating account", u256String, address);
+      console.log("creating account", u256, address);
       try {
         const result = await createDexAccount(address);
-        setAddressU256(u256String);
+        setAddressU256(u256);
         setTxData(result);
       } catch (error: any) {
         setTxData({

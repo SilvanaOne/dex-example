@@ -76,8 +76,8 @@ export async function deployMinaContract(params: {
   const tx = await Mina.transaction(
     {
       sender: admin,
-      fee: 500_000_000,
-      memo: `Deploy DEX Contract`,
+      fee: 700_000_000,
+      memo: `Deploy Silvana DEX Contract`,
     },
     async () => {
       AccountUpdate.fundNewAccount(admin, 1);

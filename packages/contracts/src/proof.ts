@@ -1,10 +1,12 @@
 import { Transaction } from "@mysten/sui/transactions";
-import { getKey } from "../src/key.js";
-import { executeTx, waitTx } from "../src/execute.js";
-import { suiClient } from "./sui-client.js";
-import { JsonProof } from "o1js";
+import {
+  getKey,
+  executeTx,
+  waitTx,
+  suiClient,
+  saveToWalrus,
+} from "@dex-example/lib";
 import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
-import { saveToWalrus } from "./walrus.js";
 import { SequenceState } from "./contracts/rollup.js";
 
 const packageID = process.env.PACKAGE_ID;

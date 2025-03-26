@@ -5,12 +5,15 @@ import { readFile } from "node:fs/promises";
 import { DexObjects } from "./helpers/dex.js";
 import {
   fetchDexAccount,
-  fetchSequenceData,
   fetchSuiObject,
   fetchBlockProofs,
-} from "../src/fetch.js";
-import { proveSequence } from "../src/prove.js";
-import { SequenceState } from "../src/contracts/rollup.js";
+} from "@dex-example/lib";
+import {
+  fetchSequenceData,
+  proveSequence,
+  SequenceState,
+} from "@dex-example/contracts";
+import {} from "@dex-example/contracts";
 import { serializeIndexedMap } from "@silvana-one/storage";
 let dexObjects: DexObjects | undefined = undefined;
 
